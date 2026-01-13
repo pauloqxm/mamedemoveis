@@ -44,6 +44,25 @@ def brl(v):
         return "R$ 0,00"
 
 
+def fmt_date_br(x):
+    if x is None or x == "":
+        return ""
+    try:
+        dt = pd.to_datetime(x, errors="coerce")
+        if pd.isna(dt):
+            return str(x)
+        return dt.strftime("%d/%m/%Y")
+    except Exception:
+        return str(x)
+
+
+def safe_float(x, default=0.0):
+    try:
+        return float(x)
+    except Exception:
+        return default
+
+
 def can(perfis):
     u = st.session_state.get("user") or {}
     return u.get("perfil") in perfis or u.get("perfil") == "admin"
@@ -78,8 +97,6 @@ def inject_css_light():
   --radius:16px;
   --shadow: 0 10px 26px rgba(15,23,42,.08);
 }
-
-/* Base */
 .stApp{
   background:
     radial-gradient(1100px 560px at 10% 10%, rgba(242,193,78,.18), transparent 60%),
@@ -89,19 +106,17 @@ def inject_css_light():
 }
 .block-container{ padding-top: 1.1rem; padding-bottom: 2rem; }
 
-/* Inputs */
 .stTextInput input, .stTextArea textarea, .stDateInput input, .stSelectbox div[data-baseweb="select"]{
   border-radius: 12px !important;
 }
 
-/* Buttons */
 .stButton>button, .stDownloadButton>button{
   border-radius: 12px !important;
   padding: .65rem .95rem !important;
   border: 1px solid rgba(242,193,78,.55) !important;
   background: linear-gradient(180deg, var(--brand), var(--brand2)) !important;
   color: #0F172A !important;
-  font-weight: 800 !important;
+  font-weight: 900 !important;
   box-shadow: 0 10px 18px rgba(234,179,8,.18);
   transition: transform .08s ease, filter .12s ease;
 }
@@ -110,7 +125,6 @@ def inject_css_light():
   transform: translateY(-1px);
 }
 
-/* Metric */
 [data-testid="stMetric"]{
   background: var(--card);
   border: 1px solid var(--line);
@@ -119,7 +133,6 @@ def inject_css_light():
   box-shadow: var(--shadow);
 }
 
-/* DataFrame */
 .stDataFrame{
   border-radius: var(--radius);
   overflow: hidden;
@@ -127,7 +140,6 @@ def inject_css_light():
   box-shadow: var(--shadow);
 }
 
-/* Custom UI */
 .topbar{
   display:flex;
   align-items:center;
@@ -154,7 +166,7 @@ def inject_css_light():
   border: 1px solid rgba(242,193,78,.45);
   padding: 6px;
 }
-.topbar .title{ font-size: 1.05rem; font-weight: 900; }
+.topbar .title{ font-size: 1.05rem; font-weight: 1000; }
 .topbar .sub{ font-size: .85rem; color: var(--muted); margin-top: 2px; }
 .pill{
   display:inline-flex;
@@ -190,7 +202,6 @@ def inject_css_light():
 .kbadge.ok{ border-color: rgba(34,197,94,.30); background: rgba(34,197,94,.10); }
 .kbadge.warn{ border-color: rgba(234,179,8,.40); background: rgba(234,179,8,.12); }
 
-/* Login */
 .login-wrap{ max-width: 980px; margin: 0 auto; padding: 30px 0 10px 0; }
 .login-hero{ display:grid; grid-template-columns: 1.1fr .9fr; gap: 18px; align-items: stretch; }
 .login-card{
@@ -211,9 +222,6 @@ def inject_css_light():
 .login-title{ font-size: 1.35rem; font-weight: 1000; }
 .login-desc{ color: var(--muted); margin-top: 2px; }
 
-/* =========================
-   SIDEBAR: fonte escura + visibilidade total
-   ========================= */
 [data-testid="stSidebar"]{
   background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%) !important;
   border-right: 1px solid var(--line) !important;
@@ -221,9 +229,6 @@ def inject_css_light():
 [data-testid="stSidebar"] *{ color: #0F172A !important; }
 [data-testid="stSidebar"] .stCaption, [data-testid="stSidebar"] small{ color: #64748B !important; }
 
-/* =========================
-   BOTÃO recolher sidebar (não some)
-   ========================= */
 [data-testid="stHeader"]{
   background: rgba(255,255,255,.92) !important;
   border-bottom: 1px solid var(--line) !important;
@@ -264,6 +269,29 @@ def render_topbar(title: str, subtitle: str = ""):
     )
 
 
+def filter_by_month(rows, date_col="created_at"):
+    """
+    Filtro global por mês/ano escolhido na sidebar.
+    Se mês='Todos' não filtra.
+    """
+    month = st.session_state.get("flt_month", "Todos")
+    year = st.session_state.get("flt_year", None)
+    if month == "Todos" or not year:
+        return rows
+
+    m = int(month)
+    y = int(year)
+
+    out = []
+    for r in (rows or []):
+        dt = pd.to_datetime(r.get(date_col), errors="coerce")
+        if pd.isna(dt):
+            continue
+        if dt.month == m and dt.year == y:
+            out.append(r)
+    return out
+
+
 def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
@@ -279,10 +307,7 @@ def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
 
     total = 0.0
     for _, r in df_it.iterrows():
-        try:
-            total += float(r.get("qtd") or 0) * float(r.get("valor_unit") or 0)
-        except Exception:
-            pass
+        total += safe_float(r.get("qtd"), 0) * safe_float(r.get("valor_unit"), 0)
 
     logo_bytes = _try_fetch_bytes(LOGO_URL, timeout=10)
 
@@ -359,7 +384,7 @@ def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
 # CSS
 inject_css_light()
 
-# Init DB (sem quebrar a tela)
+# Init DB
 if "db_ok" not in st.session_state:
     ok, msg = init_database()
     st.session_state.db_ok = ok
@@ -397,7 +422,6 @@ def login_ui():
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Infraestrutura (blindada contra DeltaGenerator)
     st.markdown('<div class="login-card">', unsafe_allow_html=True)
     st.markdown("### Infraestrutura")
 
@@ -416,28 +440,138 @@ def login_ui():
 
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
-    return None
+
+
+def page_clientes():
+    render_topbar("Clientes", "Cadastro e consulta")
+    colA, colB = st.columns([1.2, 1])
+
+    with colA:
+        st.markdown('<div class="cardx">', unsafe_allow_html=True)
+        st.subheader("Novo cliente")
+        with st.form("f_cliente", clear_on_submit=True):
+            nome = st.text_input("Nome")
+            fantasia = st.text_input("Fantasia")
+            cpf_cnpj = st.text_input("CPF/CNPJ")
+            telefone = st.text_input("Telefone")
+            whatsapp = st.text_input("WhatsApp")
+            email = st.text_input("E-mail")
+            endereco = st.text_area("Endereço")
+            observacoes = st.text_area("Observações")
+            ok = st.form_submit_button("Salvar", use_container_width=True)
+            if ok:
+                if not nome.strip():
+                    st.error("Nome é obrigatório.")
+                else:
+                    da.criar_cliente({
+                        "nome": nome.strip(),
+                        "fantasia": fantasia.strip(),
+                        "cpf_cnpj": cpf_cnpj.strip(),
+                        "telefone": telefone.strip(),
+                        "whatsapp": whatsapp.strip(),
+                        "email": email.strip(),
+                        "endereco": endereco.strip(),
+                        "observacoes": observacoes.strip()
+                    })
+                    st.success("Cliente cadastrado.")
+                    st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with colB:
+        st.markdown('<div class="cardx">', unsafe_allow_html=True)
+        st.subheader("Buscar")
+        q = st.text_input("Pesquisar", placeholder="nome, cpf/cnpj, fantasia")
+        ativo_only = st.toggle("Somente ativos", value=True)
+        rows = da.listar_clientes(ativo_only=ativo_only, q=q.strip() if q else None)
+        if rows:
+            df = pd.DataFrame(rows)
+            cols = [c for c in ["id","nome","cpf_cnpj","whatsapp","email","ativo","created_at"] if c in df.columns]
+            if "created_at" in cols:
+                df["created_at"] = df["created_at"].apply(fmt_date_br)
+            st.dataframe(df[cols], use_container_width=True, hide_index=True)
+        else:
+            st.info("Sem clientes ainda.")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+def page_funcionarios():
+    render_topbar("Funcionários", "Cadastro e consulta")
+    colA, colB = st.columns([1.2, 1])
+
+    with colA:
+        st.markdown('<div class="cardx">', unsafe_allow_html=True)
+        st.subheader("Novo funcionário")
+        with st.form("f_func", clear_on_submit=True):
+            nome = st.text_input("Nome")
+            funcao = st.text_input("Função")
+            telefone = st.text_input("Telefone")
+            data_adm = st.date_input("Data de admissão", value=None)
+            ok = st.form_submit_button("Salvar", use_container_width=True)
+            if ok:
+                if not nome.strip():
+                    st.error("Nome é obrigatório.")
+                else:
+                    da.criar_funcionario({
+                        "nome": nome.strip(),
+                        "funcao": funcao.strip(),
+                        "telefone": telefone.strip(),
+                        "data_admissao": data_adm
+                    })
+                    st.success("Funcionário cadastrado.")
+                    st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with colB:
+        st.markdown('<div class="cardx">', unsafe_allow_html=True)
+        st.subheader("Buscar")
+        q = st.text_input("Pesquisar", key="qfunc", placeholder="nome ou função")
+        ativo_only = st.toggle("Somente ativos", value=True, key="func_ativo")
+        rows = da.listar_funcionarios(ativo_only=ativo_only, q=q.strip() if q else None)
+        if rows:
+            df = pd.DataFrame(rows)
+            cols = [c for c in ["id","nome","funcao","telefone","ativo","created_at"] if c in df.columns]
+            if "created_at" in cols:
+                df["created_at"] = df["created_at"].apply(fmt_date_br)
+            st.dataframe(df[cols], use_container_width=True, hide_index=True)
+        else:
+            st.info("Sem funcionários ainda.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def page_vendas():
-    render_topbar("Dashboard", "Visão rápida do sistema")
-    orcs = da.listar_orcamentos() or []
-    peds = da.listar_pedidos() or []
+    render_topbar("Dashboard", "Visão rápida do sistema com filtro de mês")
+    orcs_all = da.listar_orcamentos() or []
+    peds_all = da.listar_pedidos() or []
+
+    orcs = filter_by_month(orcs_all, date_col="created_at")
+    peds = filter_by_month(peds_all, date_col="created_at")
+
+    total_orc = len(orcs)
+    total_ped = len(peds)
+    total_ped_valor = sum(safe_float(p.get("total"), 0) for p in peds)
+    total_orc_valor = sum(safe_float(o.get("total_estimado"), 0) for o in orcs)
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Orçamentos", len(orcs))
-    c2.metric("Pedidos", len(peds))
-    c3.metric("Orçamentos aprovados", sum(1 for o in orcs if o.get("status") == "Aprovado"))
-    c4.metric("Na etapa Produção", sum(1 for p in peds if p.get("etapa_atual") == "Produção"))
+    c1.metric("Orçamentos", total_orc)
+    c2.metric("Pedidos", total_ped)
+    c3.metric("Total em pedidos", brl(total_ped_valor))
+    c4.metric("Total em orçamentos", brl(total_orc_valor))
 
     st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
     st.subheader("Últimos pedidos")
     if peds:
         df = pd.DataFrame(peds)
-        st.dataframe(df[["codigo","cliente_nome","status","etapa_atual","status_etapa","data_entrega_prevista","total"]].head(50),
-                     use_container_width=True, hide_index=True)
+        if "data_entrega_prevista" in df.columns:
+            df["data_entrega_prevista"] = df["data_entrega_prevista"].apply(fmt_date_br)
+        if "created_at" in df.columns:
+            df["created_at"] = df["created_at"].apply(fmt_date_br)
+        if "total" in df.columns:
+            df["total"] = df["total"].apply(brl)
+
+        cols = [c for c in ["codigo","cliente_nome","status","etapa_atual","status_etapa","data_entrega_prevista","total","created_at"] if c in df.columns]
+        st.dataframe(df[cols].head(50), use_container_width=True, hide_index=True)
     else:
-        st.info("Sem pedidos ainda.")
+        st.info("Sem pedidos no filtro selecionado.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -474,17 +608,26 @@ def page_orcamento():
         st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
         st.subheader("Lista de orçamentos")
         q = st.text_input("Buscar orçamento", placeholder="código ou observação")
-        rows = da.listar_orcamentos(q=q.strip() if q else None)
+
+        rows_all = da.listar_orcamentos(q=q.strip() if q else None) or []
+        rows = filter_by_month(rows_all, date_col="created_at")
+
         if rows:
             df = pd.DataFrame(rows)
-            st.dataframe(df[["id","codigo","cliente_nome","status","total_estimado","created_at"]],
-                         use_container_width=True, hide_index=True)
+            if "created_at" in df.columns:
+                df["created_at"] = df["created_at"].apply(fmt_date_br)
+            if "total_estimado" in df.columns:
+                df["total_estimado"] = df["total_estimado"].apply(brl)
+
+            cols = [c for c in ["id","codigo","cliente_nome","status","total_estimado","created_at"] if c in df.columns]
+            st.dataframe(df[cols], use_container_width=True, hide_index=True)
+
             pick = st.selectbox("Selecionar orçamento (ID)", df["id"].tolist())
             if st.button("Abrir para editar", use_container_width=True):
                 st.session_state.orcamento_id = int(pick)
                 st.rerun()
         else:
-            st.info("Sem orçamentos ainda.")
+            st.info("Sem orçamentos no filtro selecionado.")
         st.markdown("</div>", unsafe_allow_html=True)
 
     with colB:
@@ -511,6 +654,7 @@ def page_orcamento():
               <span class="kbadge {badge_class}">Código <b>{orc.get('codigo')}</b></span>
               <span class="kbadge">Status <b>{status}</b></span>
               <span class="kbadge">Cliente <b>{orc.get('cliente_nome')}</b></span>
+              <span class="kbadge">Total <b>{brl(orc.get('total_estimado') or 0)}</b></span>
             </div>
             """, unsafe_allow_html=True
         )
@@ -551,20 +695,41 @@ def page_orcamento():
 
 
 def page_pedido():
-    render_topbar("Pedido", "Crie manual ou gere a partir de orçamento aprovado")
+    render_topbar("Pedido", "KPIs em Real + geração a partir de orçamento aprovado")
 
-    st.markdown('<div class="cardx">', unsafe_allow_html=True)
+    # Dados (aplicando filtro mês/ano)
+    peds_all = da.listar_pedidos() or []
+    peds = filter_by_month(peds_all, date_col="created_at")
+
+    total_peds = len(peds)
+    total_valor = sum(safe_float(p.get("total"), 0) for p in peds)
+    abertos = sum(1 for p in peds if (p.get("status") or "").lower() in ["aberto", "abertos"])
+    concluidos = sum(1 for p in peds if (p.get("status_etapa") or "").lower().startswith("concl"))
+
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Pedidos no período", total_peds)
+    k2.metric("Total em pedidos", brl(total_valor))
+    k3.metric("Pedidos abertos", abertos)
+    k4.metric("Etapas concluídas", concluidos)
+
+    st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
     st.subheader("Gerar pedido a partir de orçamento aprovado")
 
-    rows_orc = da.listar_orcamentos() or []
+    rows_orc_all = da.listar_orcamentos() or []
+    rows_orc = filter_by_month(rows_orc_all, date_col="created_at")
     aprovados = [r for r in rows_orc if (r.get("status") == "Aprovado")]
 
     if not aprovados:
-        st.info("Nenhum orçamento aprovado ainda.")
+        st.info("Nenhum orçamento aprovado dentro do filtro selecionado.")
     else:
         df_ap = pd.DataFrame(aprovados)
-        st.dataframe(df_ap[["id","codigo","cliente_nome","total_estimado","created_at"]],
-                     use_container_width=True, hide_index=True)
+        if "created_at" in df_ap.columns:
+            df_ap["created_at"] = df_ap["created_at"].apply(fmt_date_br)
+        if "total_estimado" in df_ap.columns:
+            df_ap["total_estimado"] = df_ap["total_estimado"].apply(brl)
+
+        cols = [c for c in ["id","codigo","cliente_nome","total_estimado","created_at"] if c in df_ap.columns]
+        st.dataframe(df_ap[cols], use_container_width=True, hide_index=True)
 
         pick_orc = st.selectbox("Escolher orçamento aprovado (ID)", df_ap["id"].tolist())
 
@@ -593,6 +758,29 @@ def page_pedido():
 
     st.markdown("</div>", unsafe_allow_html=True)
 
+    st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
+    st.subheader("Lista de pedidos (filtrados)")
+    q = st.text_input("Buscar pedido", placeholder="código ou observação", key="q_ped")
+
+    # Busca no banco, depois aplica filtro mês/ano (pra manter comportamento)
+    rows_q = da.listar_pedidos(q=q.strip() if q else None) or []
+    rows_q = filter_by_month(rows_q, date_col="created_at")
+
+    if rows_q:
+        df = pd.DataFrame(rows_q)
+        if "data_entrega_prevista" in df.columns:
+            df["data_entrega_prevista"] = df["data_entrega_prevista"].apply(fmt_date_br)
+        if "created_at" in df.columns:
+            df["created_at"] = df["created_at"].apply(fmt_date_br)
+        if "total" in df.columns:
+            df["total"] = df["total"].apply(brl)
+
+        cols = [c for c in ["id","codigo","cliente_nome","status","etapa_atual","status_etapa","responsavel_nome","data_entrega_prevista","total","created_at"] if c in df.columns]
+        st.dataframe(df[cols], use_container_width=True, hide_index=True)
+    else:
+        st.info("Sem pedidos no filtro selecionado.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
 
 def page_producao():
     render_topbar("Produção", "Kanban com etapas essenciais")
@@ -607,6 +795,7 @@ def page_producao():
     for f in funcionarios:
         f_map[f"{f['nome']} (ID {f['id']})"] = f["id"]
 
+    # Kanban: vem do método, e a filtragem por mês aqui não é por etapa
     grupos = da.listar_pedidos_por_etapa() or {}
     cols = st.columns(len(etapas))
 
@@ -616,6 +805,9 @@ def page_producao():
             st.markdown(f"<b>{etapa}</b>", unsafe_allow_html=True)
 
             pedidos = grupos.get(etapa, []) or []
+            # aplica filtro por mês/ano usando updated_at (ou created_at se preferir)
+            pedidos = filter_by_month(pedidos, date_col="updated_at")
+
             if not pedidos:
                 st.caption("Sem pedidos aqui.")
                 st.markdown("</div>", unsafe_allow_html=True)
@@ -633,14 +825,17 @@ def page_producao():
                       </div>
                       <div class="muted" style="margin-top:4px;">{p.get('cliente_nome','')}</div>
                       <div class="muted">Resp. <b>{p.get('responsavel_nome') or 'Não definido'}</b></div>
+                      <div class="muted">Total <b>{brl(p.get('total') or 0)}</b></div>
                     </div>
                 """, unsafe_allow_html=True)
 
                 with st.expander("Mover e atualizar", expanded=False):
                     nova_etapa = st.selectbox("Etapa", etapas, index=etapas.index(etapa), key=f"et_{p['id']}")
-                    status_et2 = st.selectbox("Status", STATUS_ETAPA,
-                                              index=STATUS_ETAPA.index(p.get("status_etapa") or STATUS_ETAPA[0]),
-                                              key=f"st_{p['id']}")
+                    status_et2 = st.selectbox(
+                        "Status", STATUS_ETAPA,
+                        index=STATUS_ETAPA.index(p.get("status_etapa") or STATUS_ETAPA[0]),
+                        key=f"st_{p['id']}"
+                    )
                     resp = st.selectbox("Responsável", list(f_map.keys()), key=f"rp_{p['id']}")
                     obs = st.text_area("Observação", key=f"ob_{p['id']}", height=70)
                     if st.button("Salvar", key=f"sv_{p['id']}", use_container_width=True):
@@ -653,9 +848,43 @@ def page_producao():
 
 def sidebar():
     u = st.session_state.user or {}
+
     st.sidebar.image(LOGO_URL, use_container_width=True)
     st.sidebar.markdown(f"**{u.get('nome','Usuário')}**")
     st.sidebar.caption(f"Perfil: {u.get('perfil','-')}")
+
+    # ======== Filtro Mês/Ano (global) ========
+    st.sidebar.divider()
+    st.sidebar.markdown("### Filtro por mês")
+
+    # cria lista de anos com base nos dados existentes (pedidos/orçamentos)
+    peds_all = da.listar_pedidos() or []
+    orcs_all = da.listar_orcamentos() or []
+    years = set()
+
+    for r in (peds_all + orcs_all):
+        dt = pd.to_datetime(r.get("created_at"), errors="coerce")
+        if not pd.isna(dt):
+            years.add(int(dt.year))
+
+    years = sorted(years) if years else [pd.Timestamp.now().year]
+    if "flt_year" not in st.session_state:
+        st.session_state.flt_year = str(years[-1])
+
+    year = st.sidebar.selectbox("Ano", [str(y) for y in years], index=[str(y) for y in years].index(st.session_state.flt_year))
+    st.session_state.flt_year = year
+
+    month_labels = ["Todos"] + [str(i).zfill(2) for i in range(1, 13)]
+    if "flt_month" not in st.session_state:
+        st.session_state.flt_month = "Todos"
+
+    month = st.sidebar.selectbox("Mês", month_labels, index=month_labels.index(st.session_state.flt_month))
+    st.session_state.flt_month = month
+
+    st.sidebar.caption("Dica: selecione um mês pra filtrar KPIs e listas.")
+
+    st.sidebar.divider()
+
     if st.sidebar.button("Sair", use_container_width=True):
         logout()
 
@@ -663,10 +892,13 @@ def sidebar():
 
     pages = [
         ("Vendas", page_vendas),
+        ("Clientes", page_clientes),
+        ("Funcionários", page_funcionarios),
         ("Orçamento", page_orcamento),
         ("Pedido", page_pedido),
         ("Produção", page_producao),
     ]
+
     labels = [p[0] for p in pages]
     current = st.session_state.get("page", "Vendas")
     if current not in labels:
