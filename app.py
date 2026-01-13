@@ -349,7 +349,10 @@ def page_vendas():
 
 def sidebar():
     u = st.session_state.user
-    st.sidebar.markdown(f"**Logado:** {u.get('nome')}  
+    st.sidebar.markdown(f"""
+    **Logado:** {u.get('nome')}
+    Perfil: {u.get('perfil')}
+    """) 
 Perfil: {u.get('perfil')}")
     if st.sidebar.button("Sair"):
         logout()
