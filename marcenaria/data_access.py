@@ -480,24 +480,81 @@ def listar_pedidos_por_etapa():
             return grupos
 
 
-def mover_pedido_etapa(pedido_id: int, nova_etapa: str, status_etapa: str, responsavel_id=None, observacoes: str = ""):
+def mover_pedido_etapa(
+    pedido_id: int,
+    nova_etapa: str,
+    status_etapa: str,
+    responsavel_id=None,
+    observacoes: str = ""
+):
     if nova_etapa not in ETAPAS_PRODUCAO:
         return False, "Etapa inválida."
     if status_etapa not in STATUS_ETAPA:
         return False, "Status inválido."
 
     with get_db_connection() as conn:
-        with conn.cursor() as cur:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # pega estado atual pra evitar registrar evento duplicado sem mudança
             cur.execute("""
-                UPDATE pedidos
-                SET etapa_atual=%s, status_etapa=%s, responsavel_id=%s, updated_at=CURRENT_TIMESTAMP
+                SELECT id, etapa_atual, status_etapa
+                FROM bd_marcenaria.pedidos
+                WHERE id=%s
+            """, (pedido_id,))
+            atual = cur.fetchone()
+            if not atual:
+                return False, "Pedido não encontrado."
+
+            mudou = (atual.get("etapa_atual") != nova_etapa) or (atual.get("status_etapa") != status_etapa)
+            if not mudou:
+                return True, "Nada mudou. Não registrei evento."
+
+            # 1) atualiza o pedido (no schema certo)
+            cur.execute("""
+                UPDATE bd_marcenaria.pedidos
+                SET etapa_atual=%s,
+                    status_etapa=%s,
+                    responsavel_id=%s,
+                    updated_at=CURRENT_TIMESTAMP
                 WHERE id=%s
             """, (nova_etapa, status_etapa, responsavel_id, pedido_id))
 
+            # 2) histórico interno
             cur.execute("""
-                INSERT INTO producao_etapas (pedido_id, etapa, status, responsavel_id, inicio_em, observacoes)
+                INSERT INTO bd_marcenaria.producao_etapas
+                (pedido_id, etapa, status, responsavel_id, inicio_em, observacoes)
                 VALUES (%s,%s,%s,%s,CURRENT_TIMESTAMP,%s)
             """, (pedido_id, nova_etapa, status_etapa, responsavel_id, observacoes or ""))
 
+            # 3) fila de automação (Make/WhatsApp)
+            cur.execute("""
+                INSERT INTO bd_marcenaria.producao_eventos (
+                    pedido_id,
+                    cliente_id,
+                    cliente_nome,
+                    cliente_whatsapp,
+                    etapa,
+                    status,
+                    responsavel_id,
+                    observacoes
+                )
+                SELECT
+                    p.id,
+                    p.cliente_id,
+                    c.nome,
+                    COALESCE(NULLIF(c.whatsapp,''), NULLIF(c.telefone,'')),
+                    %s,
+                    %s,
+                    %s,
+                    %s
+                FROM bd_marcenaria.pedidos p
+                JOIN bd_marcenaria.clientes c ON c.id = p.cliente_id
+                WHERE p.id = %s
+                RETURNING id
+            """, (nova_etapa, status_etapa, responsavel_id, observacoes or "", pedido_id))
+
+            ev = cur.fetchone()
             conn.commit()
-            return True, "Movido."
+
+            if ev and ev.get("id"):
+                return True, f"Movido. Evento criado ID {ev['id']}."
+            return True, "Movido. Mas não consegui criar evento."
