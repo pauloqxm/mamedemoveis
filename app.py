@@ -8,9 +8,6 @@ from marcenaria.config import ETAPAS_PRODUCAO, STATUS_ETAPA
 
 st.set_page_config(page_title="Marcenaria | Sistema Interno", layout="wide")
 
-# =========================
-# ESTILO
-# =========================
 st.markdown("""
 <style>
 .small {font-size: 0.9rem; color: #475467;}
@@ -31,41 +28,36 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# =========================
-# INIT DB
-# =========================
 if "db_ok" not in st.session_state:
     ok, msg = init_database()
     st.session_state.db_ok = ok
     st.session_state.db_msg = msg
 
-# =========================
-# HELPERS
-# =========================
+
 def can(perfis):
     u = st.session_state.get("user") or {}
     return u.get("perfil") in perfis or u.get("perfil") == "admin"
+
 
 def logout():
     st.session_state.user = None
     st.session_state.page = "Login"
     st.rerun()
 
+
 def require_login():
     if "user" not in st.session_state or not st.session_state.user:
+        st.session_state.user = None
         st.session_state.page = "Login"
         return False
     return True
 
-# =========================
-# LOGIN
-# =========================
+
 def login_ui():
     st.title("Acesso")
     st.caption("Padrão inicial. admin / admin123")
 
     col1, col2 = st.columns([1, 1])
-
     with col1:
         username = st.text_input("Usuário", placeholder="admin")
         senha = st.text_input("Senha", type="password")
@@ -86,9 +78,7 @@ def login_ui():
 
     return None
 
-# =========================
-# PÁGINAS
-# =========================
+
 def page_clientes():
     st.header("Cadastro • Clientes")
     colA, colB = st.columns([1.2, 1])
@@ -110,9 +100,14 @@ def page_clientes():
                     st.error("Nome é obrigatório.")
                 else:
                     da.criar_cliente({
-                        "nome": nome.strip(), "fantasia": fantasia.strip(), "cpf_cnpj": cpf_cnpj.strip(),
-                        "telefone": telefone.strip(), "whatsapp": whatsapp.strip(), "email": email.strip(),
-                        "endereco": endereco.strip(), "observacoes": observacoes.strip()
+                        "nome": nome.strip(),
+                        "fantasia": fantasia.strip(),
+                        "cpf_cnpj": cpf_cnpj.strip(),
+                        "telefone": telefone.strip(),
+                        "whatsapp": whatsapp.strip(),
+                        "email": email.strip(),
+                        "endereco": endereco.strip(),
+                        "observacoes": observacoes.strip()
                     })
                     st.success("Cliente cadastrado.")
                     st.rerun()
@@ -128,6 +123,7 @@ def page_clientes():
         else:
             st.info("Sem clientes ainda.")
     return None
+
 
 def page_funcionarios():
     st.header("Cadastro • Funcionários")
@@ -165,6 +161,7 @@ def page_funcionarios():
         else:
             st.info("Sem funcionários ainda.")
     return None
+
 
 def page_usuarios():
     st.header("Administração • Usuários")
@@ -241,6 +238,7 @@ def page_usuarios():
 
     return None
 
+
 def page_orcamento():
     st.header("Orçamento")
 
@@ -261,7 +259,11 @@ def page_orcamento():
             observacoes = st.text_area("Observações")
             criar = st.form_submit_button("Criar orçamento", use_container_width=True)
             if criar:
-                oid, cod = da.criar_orcamento({"cliente_id": c_map[cli], "validade": validade, "observacoes": observacoes})
+                oid, cod = da.criar_orcamento({
+                    "cliente_id": c_map[cli],
+                    "validade": validade,
+                    "observacoes": observacoes
+                })
                 st.success(f"Orçamento criado. Código {cod}")
                 st.session_state.orcamento_id = oid
                 st.rerun()
@@ -269,17 +271,57 @@ def page_orcamento():
     with colB:
         st.subheader("Itens do orçamento")
         oid = st.session_state.get("orcamento_id")
+
         if not oid:
             st.info("Crie ou selecione um orçamento abaixo.")
         else:
-            itens = da.listar_orcamento_itens(oid)
+            orc = da.obter_orcamento_por_id(int(oid))
+            if not orc:
+                st.warning("Orçamento não encontrado.")
+                return None
+
+            st.markdown(
+                f"**Código:** {orc.get('codigo')}  \n"
+                f"**Status:** {orc.get('status')}  \n"
+                f"**Cliente:** {orc.get('cliente_nome')}"
+            )
+
+            itens = da.listar_orcamento_itens(int(oid))
             df_it = pd.DataFrame(itens) if itens else pd.DataFrame(columns=["descricao","qtd","unidade","valor_unit"])
             df_it = df_it[[c for c in ["descricao","qtd","unidade","valor_unit"] if c in df_it.columns]]
-            edited = st.data_editor(df_it, num_rows="dynamic", use_container_width=True, key="orc_itens")
-            if st.button("Salvar itens", use_container_width=True):
-                total = da.salvar_orcamento_itens(oid, edited.to_dict("records"))
-                st.success(f"Itens salvos. Total estimado R$ {total:,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
-                st.rerun()
+
+            disabled_edit = (orc.get("status") == "Aprovado")
+            edited = st.data_editor(
+                df_it,
+                num_rows="dynamic",
+                use_container_width=True,
+                key="orc_itens",
+                disabled=disabled_edit
+            )
+
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("Salvar itens", use_container_width=True, disabled=disabled_edit):
+                    total = da.salvar_orcamento_itens(int(oid), edited.to_dict("records"))
+                    st.success(f"Itens salvos. Total estimado R$ {total:,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
+                    st.rerun()
+
+            with c2:
+                disabled_aprov = (orc.get("status") == "Aprovado")
+                if st.button("Aprovar e gerar Pedido", use_container_width=True, disabled=disabled_aprov):
+                    ok, msg, pedido_id, pedido_codigo = da.gerar_pedido_a_partir_orcamento(
+                        int(oid),
+                        responsavel_id=None,
+                        data_entrega_prevista=None,
+                        observacoes=f"Gerado a partir do orçamento {orc.get('codigo')}"
+                    )
+                    if ok:
+                        st.success(msg)
+                        st.session_state.pedido_id = pedido_id
+                        st.session_state.page = "Pedido"
+                        st.rerun()
+                    else:
+                        st.error(msg)
 
     st.divider()
     st.subheader("Lista de orçamentos")
@@ -295,6 +337,7 @@ def page_orcamento():
     else:
         st.info("Sem orçamentos ainda.")
     return None
+
 
 def page_pedido():
     st.header("Pedido")
@@ -365,6 +408,7 @@ def page_pedido():
         st.info("Sem pedidos ainda.")
     return None
 
+
 def page_producao():
     st.header("Produção • Kanban")
 
@@ -399,6 +443,7 @@ def page_producao():
                         st.rerun()
     return None
 
+
 def page_vendas():
     st.header("Vendas")
     orcs = da.listar_orcamentos()
@@ -413,18 +458,12 @@ def page_vendas():
         df = pd.DataFrame(peds)
         st.subheader("Últimos pedidos")
         st.dataframe(df[["codigo","cliente_nome","status","etapa_atual","status_etapa","data_entrega_prevista","total"]].head(50), use_container_width=True, hide_index=True)
-
     return None
 
-# =========================
-# SIDEBAR
-# =========================
+
 def sidebar():
     u = st.session_state.user
-
-    st.sidebar.markdown(
-        f"**Logado:** {u.get('nome')}\n\nPerfil: {u.get('perfil')}"
-    )
+    st.sidebar.markdown(f"**Logado:** {u.get('nome')}\n\nPerfil: {u.get('perfil')}")
 
     if st.sidebar.button("Sair"):
         logout()
@@ -437,7 +476,6 @@ def sidebar():
         ("Pedido", page_pedido),
         ("Produção", page_producao),
     ]
-
     if can(["admin"]):
         pages.append(("Usuários", page_usuarios))
 
@@ -450,14 +488,12 @@ def sidebar():
     st.session_state.page = choice
     return dict(pages)[choice]
 
-# =========================
-# MAIN
-# =========================
+
 if "page" not in st.session_state:
     st.session_state.page = "Login"
 
 if st.session_state.page == "Login" or not require_login():
-    _ = login_ui()  # <- evita Streamlit magic mostrando retorno
+    _ = login_ui()
 else:
-    _render = sidebar()  # <- evita Streamlit magic
-    _ = _render()        # <- evita Streamlit magic
+    render = sidebar()
+    _ = render()
