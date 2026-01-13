@@ -82,7 +82,7 @@ def require_login():
     return True
 
 
-def inject_css_light():
+def inject_css():
     st.markdown("""
 <style>
 :root{
@@ -96,7 +96,14 @@ def inject_css_light():
   --brand2:#EAB308;
   --radius:16px;
   --shadow: 0 10px 26px rgba(15,23,42,.08);
+
+  --sidebar-bg1:#0B1220;
+  --sidebar-bg2:#0F172A;
+  --sidebar-line: rgba(255,255,255,.10);
+  --sidebar-text:#FFFFFF;
+  --sidebar-muted: rgba(255,255,255,.70);
 }
+
 .stApp{
   background:
     radial-gradient(1100px 560px at 10% 10%, rgba(242,193,78,.18), transparent 60%),
@@ -110,6 +117,14 @@ def inject_css_light():
   border-radius: 12px !important;
 }
 
+/* Labels e textos do formulário sempre visíveis */
+[data-testid="stWidgetLabel"] > div,
+[data-testid="stWidgetLabel"] span,
+label, .stMarkdown, .stCaption, p{
+  color: var(--text) !important;
+}
+
+/* Botões */
 .stButton>button, .stDownloadButton>button{
   border-radius: 12px !important;
   padding: .65rem .95rem !important;
@@ -125,6 +140,7 @@ def inject_css_light():
   transform: translateY(-1px);
 }
 
+/* KPI: força texto escuro (tava ficando branco em alguns temas) */
 [data-testid="stMetric"]{
   background: var(--card);
   border: 1px solid var(--line);
@@ -132,7 +148,16 @@ def inject_css_light():
   padding: 14px 16px;
   box-shadow: var(--shadow);
 }
+[data-testid="stMetricLabel"]{
+  color: #0F172A !important;
+  font-weight: 800 !important;
+}
+[data-testid="stMetricValue"]{
+  color: #0F172A !important;
+  font-weight: 1000 !important;
+}
 
+/* Dataframe */
 .stDataFrame{
   border-radius: var(--radius);
   overflow: hidden;
@@ -140,6 +165,18 @@ def inject_css_light():
   box-shadow: var(--shadow);
 }
 
+/* Cards */
+.cardx{
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.muted{ color: var(--muted) !important; font-size: .92rem; }
+.section-title{ font-weight: 1000; margin-bottom: 6px; }
+
+/* Topbar */
 .topbar{
   display:flex;
   align-items:center;
@@ -152,14 +189,9 @@ def inject_css_light():
   box-shadow: var(--shadow);
   margin-bottom: 14px;
 }
-.topbar .brand{
-  display:flex;
-  align-items:center;
-  gap: 12px;
-}
+.topbar .brand{ display:flex; align-items:center; gap: 12px; }
 .topbar .brand img{
-  width: 44px;
-  height: 44px;
+  width: 44px; height: 44px;
   object-fit: contain;
   border-radius: 12px;
   background: #FFF7E6;
@@ -167,29 +199,16 @@ def inject_css_light():
   padding: 6px;
 }
 .topbar .title{ font-size: 1.05rem; font-weight: 1000; }
-.topbar .sub{ font-size: .85rem; color: var(--muted); margin-top: 2px; }
+.topbar .sub{ font-size: .85rem; color: var(--muted) !important; margin-top: 2px; }
 .pill{
-  display:inline-flex;
-  align-items:center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 999px;
+  display:inline-flex; align-items:center; gap: 8px;
+  padding: 6px 10px; border-radius: 999px;
   background: rgba(242,193,78,.16);
   border: 1px solid rgba(242,193,78,.40);
-  color: var(--text);
+  color: var(--text) !important;
   font-size: 12px;
   white-space: nowrap;
 }
-
-.cardx{
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 16px;
-  box-shadow: var(--shadow);
-}
-.muted{ color: var(--muted); font-size: .92rem; }
-
 .kbadge{
   display:inline-block;
   padding: 4px 10px;
@@ -197,38 +216,36 @@ def inject_css_light():
   background: #F1F5F9;
   border: 1px solid #E2E8F0;
   font-size: 12px;
-  color: var(--text);
+  color: var(--text) !important;
 }
 .kbadge.ok{ border-color: rgba(34,197,94,.30); background: rgba(34,197,94,.10); }
 .kbadge.warn{ border-color: rgba(234,179,8,.40); background: rgba(234,179,8,.12); }
 
-.login-wrap{ max-width: 980px; margin: 0 auto; padding: 30px 0 10px 0; }
-.login-hero{ display:grid; grid-template-columns: 1.1fr .9fr; gap: 18px; align-items: stretch; }
-.login-card{
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  padding: 20px;
-  box-shadow: var(--shadow);
-}
-.login-logo{ display:flex; align-items:center; gap: 12px; margin-bottom: 10px; }
-.login-logo img{
-  width: 58px; height: 58px; object-fit: contain;
-  border-radius: 16px;
-  border: 1px solid rgba(242,193,78,.45);
-  background: #FFF7E6;
-  padding: 8px;
-}
-.login-title{ font-size: 1.35rem; font-weight: 1000; }
-.login-desc{ color: var(--muted); margin-top: 2px; }
-
+/* Sidebar dark + filtros com fonte branca */
 [data-testid="stSidebar"]{
-  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%) !important;
-  border-right: 1px solid var(--line) !important;
+  background: linear-gradient(180deg, var(--sidebar-bg1) 0%, var(--sidebar-bg2) 100%) !important;
+  border-right: 1px solid var(--sidebar-line) !important;
 }
-[data-testid="stSidebar"] *{ color: #0F172A !important; }
-[data-testid="stSidebar"] .stCaption, [data-testid="stSidebar"] small{ color: #64748B !important; }
+[data-testid="stSidebar"] *{ color: var(--sidebar-text) !important; }
+[data-testid="stSidebar"] .stCaption, [data-testid="stSidebar"] small{ color: var(--sidebar-muted) !important; }
 
+/* Inputs da sidebar: fundo escuro, texto branco */
+[data-testid="stSidebar"] input,
+[data-testid="stSidebar"] textarea{
+  background: rgba(255,255,255,.06) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+}
+[data-testid="stSidebar"] [data-baseweb="select"]{
+  background: rgba(255,255,255,.06) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+}
+[data-testid="stSidebar"] [data-baseweb="select"] *{
+  color: #fff !important;
+}
+
+/* Botão recolher sidebar - garante visível */
 [data-testid="stHeader"]{
   background: rgba(255,255,255,.92) !important;
   border-bottom: 1px solid var(--line) !important;
@@ -245,6 +262,29 @@ button[data-testid="stSidebarCollapseButton"] svg{ fill: #0F172A !important; }
 button[data-testid="stSidebarCollapseButton"]:hover{
   background: #F8FAFC !important;
   border-color: #CBD5E1 !important;
+}
+
+/* Botões do menu na sidebar */
+.navbtn{
+  width: 100%;
+  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom: 8px;
+}
+.navbtn .left{ display:flex; gap:10px; align-items:center; }
+.navbtn .tag{
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(242,193,78,.18);
+  border: 1px solid rgba(242,193,78,.25);
+}
+.navbtn.active{
+  border-color: rgba(242,193,78,.45);
+  background: rgba(242,193,78,.12);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -270,10 +310,6 @@ def render_topbar(title: str, subtitle: str = ""):
 
 
 def filter_by_month(rows, date_col="created_at"):
-    """
-    Filtro global por mês/ano escolhido na sidebar.
-    Se mês='Todos' não filtra.
-    """
     month = st.session_state.get("flt_month", "Todos")
     year = st.session_state.get("flt_year", None)
     if month == "Todos" or not year:
@@ -382,7 +418,7 @@ def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
 
 
 # CSS
-inject_css_light()
+inject_css()
 
 # Init DB
 if "db_ok" not in st.session_state:
@@ -392,72 +428,71 @@ if "db_ok" not in st.session_state:
 
 
 def login_ui():
-    st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
-
-    st.markdown(f"""
-    <div class="login-hero">
-      <div class="login-card">
-        <div class="login-logo">
-          <img src="{LOGO_URL}" />
-          <div>
-            <div class="login-title">Mamede Móveis Projetados</div>
-            <div class="login-desc">Acesso ao sistema interno.</div>
-          </div>
+    st.markdown("""
+    <div class="cardx" style="max-width:980px;margin:22px auto;padding:20px;border-radius:22px;">
+      <div style="display:flex;gap:14px;align-items:center;">
+        <img src="%s" style="width:64px;height:64px;object-fit:contain;border-radius:18px;background:#FFF7E6;border:1px solid rgba(242,193,78,.45);padding:10px;" />
+        <div>
+          <div style="font-size:1.4rem;font-weight:1000;">Mamede Móveis Projetados</div>
+          <div style="color:#64748B;margin-top:2px;">Acesso ao sistema interno. Padrão inicial: admin / admin123</div>
         </div>
-        <div class="muted">Padrão inicial: admin / admin123</div>
-    """, unsafe_allow_html=True)
+      </div>
+    </div>
+    """ % LOGO_URL, unsafe_allow_html=True)
 
-    username = st.text_input("Usuário", placeholder="admin")
-    senha = st.text_input("Senha", type="password")
+    col1, col2 = st.columns([1.05, .95])
 
-    entrar = st.button("Entrar", use_container_width=True)
+    with col1:
+        st.markdown('<div class="cardx">', unsafe_allow_html=True)
+        st.subheader("Entrar")
+        username = st.text_input("Usuário", placeholder="admin")
+        senha = st.text_input("Senha", type="password")
+        if st.button("Entrar", use_container_width=True):
+            u = da.autenticar_usuario(username.strip(), senha)
+            if u:
+                st.session_state.user = u
+                st.session_state.page = "Vendas"
+                st.rerun()
+            st.error("Usuário ou senha inválidos.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    if entrar:
-        u = da.autenticar_usuario(username.strip(), senha)
-        if u:
-            st.session_state.user = u
-            st.session_state.page = "Vendas"
-            st.rerun()
-        st.error("Usuário ou senha inválidos.")
+    with col2:
+        st.markdown('<div class="cardx">', unsafe_allow_html=True)
+        st.subheader("Infraestrutura")
+        ok_conn, msg_conn = test_db_connection()
+        msg_conn = msg_conn if isinstance(msg_conn, str) else ("Conectado." if ok_conn else "Falha na conexão.")
+        db_msg = st.session_state.db_msg if isinstance(st.session_state.db_msg, str) else "Status indisponível."
 
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown('<div class="login-card">', unsafe_allow_html=True)
-    st.markdown("### Infraestrutura")
-
-    ok_conn, msg_conn = test_db_connection()
-    msg_conn = msg_conn if isinstance(msg_conn, str) else ("Conectado." if ok_conn else "Falha na conexão.")
-    db_msg = st.session_state.db_msg if isinstance(st.session_state.db_msg, str) else "Status indisponível."
-
-    colA, colB = st.columns(2)
-    with colA:
         st.markdown("**Status do banco**")
         st.success(msg_conn) if ok_conn else st.error(msg_conn)
 
-    with colB:
         st.markdown("**Migração**")
         st.success(db_msg) if st.session_state.db_ok else st.error(db_msg)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def page_clientes():
     render_topbar("Clientes", "Cadastro e consulta")
-    colA, colB = st.columns([1.2, 1])
+    colA, colB = st.columns([1.3, 1])
 
     with colA:
         st.markdown('<div class="cardx">', unsafe_allow_html=True)
-        st.subheader("Novo cliente")
+        st.markdown('<div class="section-title">🧾 Novo cliente</div>', unsafe_allow_html=True)
+
         with st.form("f_cliente", clear_on_submit=True):
-            nome = st.text_input("Nome")
-            fantasia = st.text_input("Fantasia")
-            cpf_cnpj = st.text_input("CPF/CNPJ")
-            telefone = st.text_input("Telefone")
-            whatsapp = st.text_input("WhatsApp")
-            email = st.text_input("E-mail")
-            endereco = st.text_area("Endereço")
-            observacoes = st.text_area("Observações")
+            c1, c2 = st.columns(2)
+            with c1:
+                nome = st.text_input("Nome", placeholder="Ex: João da Silva")
+                fantasia = st.text_input("Fantasia", placeholder="Ex: João Móveis")
+                cpf_cnpj = st.text_input("CPF/CNPJ", placeholder="Somente números ou com máscara")
+            with c2:
+                telefone = st.text_input("Telefone", placeholder="Ex: (88) 9xxxx-xxxx")
+                whatsapp = st.text_input("WhatsApp", placeholder="Ex: (88) 9xxxx-xxxx")
+                email = st.text_input("E-mail", placeholder="Ex: contato@dominio.com")
+
+            endereco = st.text_area("Endereço", placeholder="Rua, número, bairro, cidade", height=80)
+            observacoes = st.text_area("Observações", placeholder="Detalhes importantes do cliente", height=80)
+
             ok = st.form_submit_button("Salvar", use_container_width=True)
             if ok:
                 if not nome.strip():
@@ -475,13 +510,16 @@ def page_clientes():
                     })
                     st.success("Cliente cadastrado.")
                     st.rerun()
+
         st.markdown("</div>", unsafe_allow_html=True)
 
     with colB:
         st.markdown('<div class="cardx">', unsafe_allow_html=True)
-        st.subheader("Buscar")
+        st.markdown('<div class="section-title">🔎 Buscar</div>', unsafe_allow_html=True)
+
         q = st.text_input("Pesquisar", placeholder="nome, cpf/cnpj, fantasia")
         ativo_only = st.toggle("Somente ativos", value=True)
+
         rows = da.listar_clientes(ativo_only=ativo_only, q=q.strip() if q else None)
         if rows:
             df = pd.DataFrame(rows)
@@ -496,16 +534,21 @@ def page_clientes():
 
 def page_funcionarios():
     render_topbar("Funcionários", "Cadastro e consulta")
-    colA, colB = st.columns([1.2, 1])
+    colA, colB = st.columns([1.3, 1])
 
     with colA:
         st.markdown('<div class="cardx">', unsafe_allow_html=True)
-        st.subheader("Novo funcionário")
+        st.markdown('<div class="section-title">👷 Novo funcionário</div>', unsafe_allow_html=True)
+
         with st.form("f_func", clear_on_submit=True):
-            nome = st.text_input("Nome")
-            funcao = st.text_input("Função")
-            telefone = st.text_input("Telefone")
-            data_adm = st.date_input("Data de admissão", value=None)
+            c1, c2 = st.columns(2)
+            with c1:
+                nome = st.text_input("Nome", placeholder="Ex: Maria Oliveira")
+                funcao = st.text_input("Função", placeholder="Ex: Marceneiro, Montador, Comercial")
+            with c2:
+                telefone = st.text_input("Telefone", placeholder="Ex: (88) 9xxxx-xxxx")
+                data_adm = st.date_input("Data de admissão", value=None)
+
             ok = st.form_submit_button("Salvar", use_container_width=True)
             if ok:
                 if not nome.strip():
@@ -519,13 +562,16 @@ def page_funcionarios():
                     })
                     st.success("Funcionário cadastrado.")
                     st.rerun()
+
         st.markdown("</div>", unsafe_allow_html=True)
 
     with colB:
         st.markdown('<div class="cardx">', unsafe_allow_html=True)
-        st.subheader("Buscar")
+        st.markdown('<div class="section-title">🔎 Buscar</div>', unsafe_allow_html=True)
+
         q = st.text_input("Pesquisar", key="qfunc", placeholder="nome ou função")
         ativo_only = st.toggle("Somente ativos", value=True, key="func_ativo")
+
         rows = da.listar_funcionarios(ativo_only=ativo_only, q=q.strip() if q else None)
         if rows:
             df = pd.DataFrame(rows)
@@ -552,10 +598,10 @@ def page_vendas():
     total_orc_valor = sum(safe_float(o.get("total_estimado"), 0) for o in orcs)
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Orçamentos", total_orc)
-    c2.metric("Pedidos", total_ped)
-    c3.metric("Total em pedidos", brl(total_ped_valor))
-    c4.metric("Total em orçamentos", brl(total_orc_valor))
+    c1.metric("🧾 Orçamentos", total_orc)
+    c2.metric("📦 Pedidos", total_ped)
+    c3.metric("💰 Total em pedidos", brl(total_ped_valor))
+    c4.metric("📊 Total em orçamentos", brl(total_orc_valor))
 
     st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
     st.subheader("Últimos pedidos")
@@ -697,7 +743,6 @@ def page_orcamento():
 def page_pedido():
     render_topbar("Pedido", "KPIs em Real + geração a partir de orçamento aprovado")
 
-    # Dados (aplicando filtro mês/ano)
     peds_all = da.listar_pedidos() or []
     peds = filter_by_month(peds_all, date_col="created_at")
 
@@ -707,10 +752,10 @@ def page_pedido():
     concluidos = sum(1 for p in peds if (p.get("status_etapa") or "").lower().startswith("concl"))
 
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Pedidos no período", total_peds)
-    k2.metric("Total em pedidos", brl(total_valor))
-    k3.metric("Pedidos abertos", abertos)
-    k4.metric("Etapas concluídas", concluidos)
+    k1.metric("📦 Pedidos no período", total_peds)
+    k2.metric("💰 Total em pedidos", brl(total_valor))
+    k3.metric("🟡 Pedidos abertos", abertos)
+    k4.metric("✅ Etapas concluídas", concluidos)
 
     st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
     st.subheader("Gerar pedido a partir de orçamento aprovado")
@@ -762,7 +807,6 @@ def page_pedido():
     st.subheader("Lista de pedidos (filtrados)")
     q = st.text_input("Buscar pedido", placeholder="código ou observação", key="q_ped")
 
-    # Busca no banco, depois aplica filtro mês/ano (pra manter comportamento)
     rows_q = da.listar_pedidos(q=q.strip() if q else None) or []
     rows_q = filter_by_month(rows_q, date_col="created_at")
 
@@ -785,7 +829,6 @@ def page_pedido():
 def page_producao():
     render_topbar("Produção", "Kanban com etapas essenciais")
 
-    # Remove Expedição/Transporte do Kanban
     etapas = [e for e in ETAPAS_PRODUCAO if str(e).strip().lower() not in ["expedição", "expedicao", "transporte"]]
     if not etapas:
         etapas = ETAPAS_PRODUCAO
@@ -795,17 +838,15 @@ def page_producao():
     for f in funcionarios:
         f_map[f"{f['nome']} (ID {f['id']})"] = f["id"]
 
-    # Kanban: vem do método, e a filtragem por mês aqui não é por etapa
     grupos = da.listar_pedidos_por_etapa() or {}
     cols = st.columns(len(etapas))
 
     for i, etapa in enumerate(etapas):
         with cols[i]:
             st.markdown('<div class="cardx">', unsafe_allow_html=True)
-            st.markdown(f"<b>{etapa}</b>", unsafe_allow_html=True)
+            st.markdown(f"<b>🧱 {etapa}</b>", unsafe_allow_html=True)
 
             pedidos = grupos.get(etapa, []) or []
-            # aplica filtro por mês/ano usando updated_at (ou created_at se preferir)
             pedidos = filter_by_month(pedidos, date_col="updated_at")
 
             if not pedidos:
@@ -846,18 +887,51 @@ def page_producao():
             st.markdown("</div>", unsafe_allow_html=True)
 
 
+def sidebar_nav_button(label: str, page_name: str, emoji: str, current: str):
+    active = (current == page_name)
+    tag = "ATIVO" if active else "ABRIR"
+    css = "navbtn active" if active else "navbtn"
+    st.sidebar.markdown(
+        f"""
+        <div class="{css}">
+          <div class="left">
+            <div style="font-size:18px;">{emoji}</div>
+            <div style="font-weight:900;">{label}</div>
+          </div>
+          <div class="tag">{tag}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    if st.sidebar.button(f"{emoji} {label}", key=f"nav_{page_name}", use_container_width=True):
+        st.session_state.page = page_name
+        st.rerun()
+
+
 def sidebar():
     u = st.session_state.user or {}
-
     st.sidebar.image(LOGO_URL, use_container_width=True)
     st.sidebar.markdown(f"**{u.get('nome','Usuário')}**")
     st.sidebar.caption(f"Perfil: {u.get('perfil','-')}")
 
-    # ======== Filtro Mês/Ano (global) ========
+    # Navegação em cima dos filtros
     st.sidebar.divider()
+    st.sidebar.markdown("### Navegação")
+
+    current = st.session_state.get("page", "Vendas")
+
+    sidebar_nav_button("Dashboard", "Vendas", "📊", current)
+    sidebar_nav_button("Clientes", "Clientes", "🧾", current)
+    sidebar_nav_button("Funcionários", "Funcionários", "👷", current)
+    sidebar_nav_button("Orçamentos", "Orçamento", "🧮", current)
+    sidebar_nav_button("Pedidos", "Pedido", "📦", current)
+    sidebar_nav_button("Produção", "Produção", "🧱", current)
+
+    st.sidebar.divider()
+
+    # ======== Filtro Mês/Ano (global) ========
     st.sidebar.markdown("### Filtro por mês")
 
-    # cria lista de anos com base nos dados existentes (pedidos/orçamentos)
     peds_all = da.listar_pedidos() or []
     orcs_all = da.listar_orcamentos() or []
     years = set()
@@ -881,32 +955,11 @@ def sidebar():
     month = st.sidebar.selectbox("Mês", month_labels, index=month_labels.index(st.session_state.flt_month))
     st.session_state.flt_month = month
 
-    st.sidebar.caption("Dica: selecione um mês pra filtrar KPIs e listas.")
+    st.sidebar.caption("Filtra KPIs e listas por criação (mês/ano).")
 
     st.sidebar.divider()
-
-    if st.sidebar.button("Sair", use_container_width=True):
+    if st.sidebar.button("🚪 Sair", use_container_width=True):
         logout()
-
-    st.sidebar.divider()
-
-    pages = [
-        ("Vendas", page_vendas),
-        ("Clientes", page_clientes),
-        ("Funcionários", page_funcionarios),
-        ("Orçamento", page_orcamento),
-        ("Pedido", page_pedido),
-        ("Produção", page_producao),
-    ]
-
-    labels = [p[0] for p in pages]
-    current = st.session_state.get("page", "Vendas")
-    if current not in labels:
-        current = "Vendas"
-
-    choice = st.sidebar.radio("Navegação", labels, index=labels.index(current))
-    st.session_state.page = choice
-    return dict(pages)[choice]
 
 
 # Router
@@ -916,5 +969,16 @@ if "page" not in st.session_state:
 if st.session_state.page == "Login" or not require_login():
     login_ui()
 else:
-    render = sidebar()
-    render()
+    sidebar()
+
+    # Render page
+    page = st.session_state.get("page", "Vendas")
+    routes = {
+        "Vendas": page_vendas,
+        "Clientes": page_clientes,
+        "Funcionários": page_funcionarios,
+        "Orçamento": page_orcamento,
+        "Pedido": page_pedido,
+        "Produção": page_producao,
+    }
+    routes.get(page, page_vendas)()
