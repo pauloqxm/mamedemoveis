@@ -8,11 +8,13 @@ def init_database():
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
-                # 1) garante schema e aponta search_path
+                # Schema + search_path
                 cur.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")
                 cur.execute(f"SET search_path TO {SCHEMA}, public")
 
-                # 2) tabelas (todas dentro do schema)
+                # =========================
+                # Tabelas
+                # =========================
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS usuarios (
                         id SERIAL PRIMARY KEY,
@@ -128,7 +130,9 @@ def init_database():
                     )
                 """)
 
-                # 3) fila de automação (Make/WhatsApp) - necessária pro mover_pedido_etapa
+                # =========================
+                # Fila de automação (Make/WhatsApp)
+                # =========================
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS producao_eventos (
                         id SERIAL PRIMARY KEY,
@@ -140,12 +144,16 @@ def init_database():
                         status VARCHAR(20) NOT NULL,
                         responsavel_id INTEGER REFERENCES funcionarios(id),
                         observacoes TEXT DEFAULT '',
-                        processado BOOLEAN DEFAULT FALSE,
                         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
 
-                # 4) índices
+                # MIGRAÇÃO segura: se já existia sem a coluna, adiciona
+                cur.execute("ALTER TABLE producao_eventos ADD COLUMN IF NOT EXISTS processado BOOLEAN DEFAULT FALSE")
+
+                # =========================
+                # Índices (só depois de garantir as colunas)
+                # =========================
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_pedidos_etapa ON pedidos(etapa_atual)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_pedidos_status ON pedidos(status)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_orcamentos_cliente ON orcamentos(cliente_id)")
@@ -153,7 +161,9 @@ def init_database():
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_eventos_processado ON producao_eventos(processado)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_eventos_pedido ON producao_eventos(pedido_id)")
 
-                # 5) admin padrão
+                # =========================
+                # Admin default
+                # =========================
                 cur.execute("SELECT COUNT(*) FROM usuarios WHERE username='admin'")
                 if cur.fetchone()[0] == 0:
                     cur.execute("""
