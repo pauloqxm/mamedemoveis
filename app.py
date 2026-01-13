@@ -1,10 +1,8 @@
 import io
-import base64
 from datetime import date
 
 import streamlit as st
 import pandas as pd
-
 from urllib.request import urlopen
 
 from marcenaria.migrations import init_database
@@ -18,7 +16,25 @@ from marcenaria.config import ETAPAS_PRODUCAO, STATUS_ETAPA
 APP_TITLE = "Mamede Móveis Projetados | Sistema Interno"
 LOGO_URL = "https://i.ibb.co/FkXDym6H/logo-mamede.png"
 
-st.set_page_config(page_title=APP_TITLE, layout="wide")
+st.set_page_config(page_title=APP_TITLE, layout="wide", initial_sidebar_state="expanded")
+
+# Força tema claro sempre (mesmo se o usuário estiver em dark mode)
+st.markdown(
+    """
+<script>
+const theme = {
+  base: "light",
+  primaryColor: "#F2C14E",
+  backgroundColor: "#FFFFFF",
+  secondaryBackgroundColor: "#F8FAFC",
+  textColor: "#0F172A",
+  font: "sans serif"
+};
+window.parent.postMessage({ type: "streamlit:setTheme", theme: theme }, "*");
+</script>
+""",
+    unsafe_allow_html=True,
+)
 
 
 # =========================
@@ -58,194 +74,194 @@ def require_login():
     return True
 
 
-def inject_css():
+def inject_css_light():
     st.markdown(
         """
-        <style>
-        :root{
-          --bg: #0B0F14;
-          --panel: #111827;
-          --card: #0F172A;
-          --muted: #94A3B8;
-          --text: #E5E7EB;
-          --line: rgba(255,255,255,.08);
-          --brand: #F2C14E; /* dourado */
-          --brand2: #F59E0B; /* âmbar */
-          --ok: #22C55E;
-          --warn: #F59E0B;
-          --bad: #EF4444;
-          --radius: 18px;
-          --shadow: 0 12px 30px rgba(0,0,0,.35);
-        }
+<style>
+:root{
+  --bg:#FFFFFF;
+  --muted:#64748B;
+  --text:#0F172A;
+  --panel:#F8FAFC;
+  --card:#FFFFFF;
+  --line:#E5E7EB;
+  --brand:#F2C14E;
+  --brand2:#EAB308;
+  --radius:16px;
+  --shadow: 0 10px 26px rgba(15,23,42,.08);
+}
 
-        /* Base */
-        .stApp{
-          background: radial-gradient(1200px 600px at 10% 10%, rgba(242,193,78,.14), transparent 60%),
-                      radial-gradient(900px 500px at 90% 20%, rgba(245,158,11,.10), transparent 55%),
-                      linear-gradient(180deg, #070A0F, #0B0F14 55%, #070A0F);
-          color: var(--text);
-        }
+/* Base */
+.stApp{
+  background:
+    radial-gradient(1100px 560px at 10% 10%, rgba(242,193,78,.18), transparent 60%),
+    radial-gradient(980px 520px at 92% 14%, rgba(234,179,8,.12), transparent 62%),
+    linear-gradient(180deg, #FFFFFF, #FFFFFF);
+  color: var(--text);
+}
+.block-container{ padding-top: 1.1rem; padding-bottom: 2rem; }
 
-        /* Remove padding estranho do topo */
-        .block-container{ padding-top: 1.2rem; padding-bottom: 2rem; }
+/* Sidebar */
+[data-testid="stSidebar"]{
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+  border-right: 1px solid var(--line);
+}
+[data-testid="stSidebar"] .block-container{ padding-top: 1rem; }
 
-        /* Sidebar */
-        [data-testid="stSidebar"]{
-          background: linear-gradient(180deg, #06080C 0%, #0B0F14 100%);
-          border-right: 1px solid var(--line);
-        }
-        [data-testid="stSidebar"] .block-container{ padding-top: 1rem; }
+/* Inputs */
+.stTextInput input, .stTextArea textarea, .stDateInput input, .stSelectbox div[data-baseweb="select"]{
+  border-radius: 12px !important;
+}
 
-        /* Inputs */
-        .stTextInput input, .stTextArea textarea, .stDateInput input, .stSelectbox div[data-baseweb="select"]{
-          border-radius: 14px !important;
-        }
+/* Buttons */
+.stButton>button, .stDownloadButton>button{
+  border-radius: 12px !important;
+  padding: .65rem .95rem !important;
+  border: 1px solid rgba(242,193,78,.55) !important;
+  background: linear-gradient(180deg, var(--brand), var(--brand2)) !important;
+  color: #0F172A !important;
+  font-weight: 700 !important;
+  box-shadow: 0 10px 18px rgba(234,179,8,.18);
+  transition: transform .08s ease, filter .12s ease;
+}
+.stButton>button:hover, .stDownloadButton>button:hover{
+  filter: brightness(1.02);
+  transform: translateY(-1px);
+}
 
-        /* Buttons */
-        .stButton>button, .stDownloadButton>button{
-          border-radius: 14px !important;
-          padding: .65rem .95rem !important;
-          border: 1px solid rgba(242,193,78,.28) !important;
-          background: linear-gradient(180deg, rgba(242,193,78,.20), rgba(245,158,11,.12)) !important;
-          color: var(--text) !important;
-          box-shadow: 0 8px 18px rgba(0,0,0,.28);
-          transition: transform .08s ease, filter .12s ease;
-        }
-        .stButton>button:hover, .stDownloadButton>button:hover{
-          filter: brightness(1.08);
-          transform: translateY(-1px);
-        }
+/* Metric */
+[data-testid="stMetric"]{
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
 
-        /* Metrics */
-        [data-testid="stMetric"]{
-          background: rgba(255,255,255,.03);
-          border: 1px solid var(--line);
-          border-radius: var(--radius);
-          padding: 14px 16px;
-          box-shadow: var(--shadow);
-        }
+/* DataFrame */
+.stDataFrame{
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
 
-        /* Dataframe */
-        .stDataFrame{
-          border-radius: var(--radius);
-          overflow: hidden;
-          border: 1px solid var(--line);
-          box-shadow: var(--shadow);
-        }
+/* Custom UI */
+.topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+}
+.topbar .brand{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+}
+.topbar .brand img{
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #FFF7E6;
+  border: 1px solid rgba(242,193,78,.45);
+  padding: 6px;
+}
+.topbar .title{
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: .2px;
+}
+.topbar .sub{
+  font-size: .85rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.pill{
+  display:inline-flex;
+  align-items:center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(242,193,78,.16);
+  border: 1px solid rgba(242,193,78,.40);
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+}
 
-        /* Custom UI blocks */
-        .topbar{
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          gap: 14px;
-          background: rgba(255,255,255,.03);
-          border: 1px solid var(--line);
-          border-radius: var(--radius);
-          padding: 14px 16px;
-          box-shadow: var(--shadow);
-          margin-bottom: 14px;
-        }
-        .topbar .brand{
-          display:flex;
-          align-items:center;
-          gap: 12px;
-        }
-        .topbar .brand img{
-          width: 42px;
-          height: 42px;
-          object-fit: contain;
-          border-radius: 12px;
-          background: rgba(255,255,255,.04);
-          border: 1px solid var(--line);
-          padding: 6px;
-        }
-        .topbar .title{
-          font-size: 1.05rem;
-          font-weight: 700;
-          letter-spacing: .2px;
-        }
-        .topbar .sub{
-          font-size: .85rem;
-          color: var(--muted);
-          margin-top: 2px;
-        }
-        .pill{
-          display:inline-flex;
-          align-items:center;
-          gap: 8px;
-          padding: 6px 10px;
-          border-radius: 999px;
-          background: rgba(242,193,78,.10);
-          border: 1px solid rgba(242,193,78,.22);
-          color: var(--text);
-          font-size: 12px;
-          white-space: nowrap;
-        }
-        .cardx{
-          background: rgba(255,255,255,.03);
-          border: 1px solid var(--line);
-          border-radius: var(--radius);
-          padding: 14px 14px;
-          box-shadow: var(--shadow);
-        }
-        .muted{ color: var(--muted); font-size: .9rem; }
-        .kbadge{
-          display:inline-block;
-          padding: 4px 10px;
-          border-radius: 999px;
-          background: rgba(255,255,255,.05);
-          border: 1px solid var(--line);
-          font-size: 12px;
-          color: var(--text);
-        }
-        .kbadge.ok{ border-color: rgba(34,197,94,.30); background: rgba(34,197,94,.10); }
-        .kbadge.warn{ border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.10); }
-        .kbadge.bad{ border-color: rgba(239,68,68,.35); background: rgba(239,68,68,.10); }
-        .coltitle{
-          font-weight: 800;
-          letter-spacing: .2px;
-          margin-bottom: 10px;
-        }
+.cardx{
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.muted{ color: var(--muted); font-size: .92rem; }
 
-        /* Login */
-        .login-wrap{
-          max-width: 980px;
-          margin: 0 auto;
-          padding: 30px 0 10px 0;
-        }
-        .login-hero{
-          display:grid;
-          grid-template-columns: 1.1fr .9fr;
-          gap: 18px;
-          align-items: stretch;
-        }
-        .login-card{
-          background: rgba(255,255,255,.03);
-          border: 1px solid var(--line);
-          border-radius: 22px;
-          padding: 20px;
-          box-shadow: var(--shadow);
-        }
-        .login-logo{
-          display:flex;
-          align-items:center;
-          gap: 12px;
-          margin-bottom: 10px;
-        }
-        .login-logo img{
-          width: 56px;
-          height: 56px;
-          object-fit: contain;
-          border-radius: 16px;
-          border: 1px solid var(--line);
-          background: rgba(255,255,255,.04);
-          padding: 8px;
-        }
-        .login-title{ font-size: 1.35rem; font-weight: 900; }
-        .login-desc{ color: var(--muted); margin-top: 2px; }
-        </style>
-        """,
+.kbadge{
+  display:inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  font-size: 12px;
+  color: var(--text);
+}
+.kbadge.ok{ border-color: rgba(34,197,94,.30); background: rgba(34,197,94,.10); }
+.kbadge.warn{ border-color: rgba(234,179,8,.40); background: rgba(234,179,8,.12); }
+.kbadge.bad{ border-color: rgba(239,68,68,.30); background: rgba(239,68,68,.10); }
+
+.coltitle{
+  font-weight: 900;
+  letter-spacing: .2px;
+  margin-bottom: 10px;
+}
+
+/* Login */
+.login-wrap{
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 30px 0 10px 0;
+}
+.login-hero{
+  display:grid;
+  grid-template-columns: 1.1fr .9fr;
+  gap: 18px;
+  align-items: stretch;
+}
+.login-card{
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.login-logo{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.login-logo img{
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  border-radius: 16px;
+  border: 1px solid rgba(242,193,78,.45);
+  background: #FFF7E6;
+  padding: 8px;
+}
+.login-title{ font-size: 1.35rem; font-weight: 1000; }
+.login-desc{ color: var(--muted); margin-top: 2px; }
+</style>
+""",
         unsafe_allow_html=True,
     )
 
@@ -276,7 +292,6 @@ def render_topbar(title: str, subtitle: str = ""):
 # PDF Orçamento
 # =========================
 def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
-    # usando reportlab (já instalado no ambiente)
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
     from reportlab.lib.units import mm
@@ -289,7 +304,6 @@ def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
     itens = da.listar_orcamento_itens(int(orcamento_id)) or []
     df_it = pd.DataFrame(itens) if itens else pd.DataFrame(columns=["descricao", "qtd", "unidade", "valor_unit"])
 
-    # total (se o banco já calcula, melhor, mas aqui garantimos)
     total = 0.0
     for _, r in df_it.iterrows():
         try:
@@ -305,8 +319,8 @@ def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
     c = canvas.Canvas(buf, pagesize=A4)
     w, h = A4
 
-    # header
-    c.setFillColorRGB(0.06, 0.09, 0.16)  # fundo escuro
+    # header claro
+    c.setFillColorRGB(0.95, 0.95, 0.98)
     c.rect(0, h - 42 * mm, w, 42 * mm, stroke=0, fill=1)
 
     if logo_bytes:
@@ -316,38 +330,34 @@ def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
         except Exception:
             pass
 
-    c.setFillColorRGB(1, 1, 1)
+    c.setFillColorRGB(0.06, 0.09, 0.16)
     c.setFont("Helvetica-Bold", 16)
     c.drawString(46 * mm, h - 18 * mm, "ORÇAMENTO")
     c.setFont("Helvetica", 10)
-    c.setFillColorRGB(0.88, 0.90, 0.92)
+    c.setFillColorRGB(0.25, 0.32, 0.42)
     c.drawString(46 * mm, h - 26 * mm, f"Código: {orc.get('codigo', '-')}")
     c.drawString(46 * mm, h - 32 * mm, f"Status: {orc.get('status', '-')}")
     c.drawRightString(w - 14 * mm, h - 18 * mm, f"Data: {str(orc.get('created_at', '')).split(' ')[0]}")
 
-    # corpo
     y = h - 52 * mm
-    c.setFillColorRGB(0.90, 0.76, 0.31)  # dourado
+    c.setFillColorRGB(0.91, 0.76, 0.31)
     c.setFont("Helvetica-Bold", 11)
     c.drawString(14 * mm, y, "Cliente")
-    c.setFillColorRGB(0.15, 0.18, 0.24)
+    c.setFillColorRGB(0.08, 0.10, 0.14)
     c.setFont("Helvetica", 11)
     y -= 6 * mm
     c.drawString(14 * mm, y, str(orc.get("cliente_nome", "-")))
 
     y -= 10 * mm
-    c.setFillColorRGB(0.90, 0.76, 0.31)
+    c.setFillColorRGB(0.91, 0.76, 0.31)
     c.setFont("Helvetica-Bold", 11)
     c.drawString(14 * mm, y, "Observações")
-    c.setFillColorRGB(0.15, 0.18, 0.24)
+    c.setFillColorRGB(0.08, 0.10, 0.14)
     c.setFont("Helvetica", 10)
     y -= 6 * mm
-    obs = (orc.get("observacoes") or "").strip()
-    if not obs:
-        obs = "-"
-    # quebra simples
+    obs = (orc.get("observacoes") or "").strip() or "-"
     max_chars = 95
-    lines = [obs[i:i + max_chars] for i in range(0, len(obs), max_chars)]
+    lines = [obs[i : i + max_chars] for i in range(0, len(obs), max_chars)]
     for line in lines[:4]:
         c.drawString(14 * mm, y, line)
         y -= 5 * mm
@@ -370,7 +380,7 @@ def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
     y -= 8 * mm
 
     c.setFont("Helvetica", 9)
-    c.setFillColorRGB(0.15, 0.18, 0.24)
+    c.setFillColorRGB(0.08, 0.10, 0.14)
 
     if df_it.empty:
         c.drawString(16 * mm, y, "Sem itens cadastrados.")
@@ -382,12 +392,11 @@ def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
             un = str(r.get("unidade") or "")[:8]
             vu = r.get("valor_unit") or 0
 
-            # pagina nova se estourar
             if y < 25 * mm:
                 c.showPage()
                 y = h - 20 * mm
                 c.setFont("Helvetica", 9)
-                c.setFillColorRGB(0.15, 0.18, 0.24)
+                c.setFillColorRGB(0.08, 0.10, 0.14)
 
             c.drawString(16 * mm, y, desc)
             c.drawRightString(w - 70 * mm, y, str(qtd))
@@ -395,14 +404,12 @@ def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
             c.drawRightString(w - 14 * mm, y, brl(vu))
             y -= 6 * mm
 
-    # total
     y -= 4 * mm
-    c.setFillColorRGB(0.90, 0.76, 0.31)
+    c.setFillColorRGB(0.91, 0.76, 0.31)
     c.setFont("Helvetica-Bold", 12)
     c.drawRightString(w - 14 * mm, y, f"Total estimado: {brl(total)}")
 
-    # rodapé
-    c.setFillColorRGB(0.45, 0.48, 0.55)
+    c.setFillColorRGB(0.35, 0.42, 0.52)
     c.setFont("Helvetica", 8)
     c.drawString(14 * mm, 12 * mm, "Mamede Móveis Projetados. Orçamento gerado pelo sistema interno.")
 
@@ -412,9 +419,9 @@ def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
 
 
 # =========================
-# Init DB
+# Init
 # =========================
-inject_css()
+inject_css_light()
 
 if "db_ok" not in st.session_state:
     ok, msg = init_database()
@@ -423,7 +430,7 @@ if "db_ok" not in st.session_state:
 
 
 # =========================
-# UI: Login
+# Pages
 # =========================
 def login_ui():
     st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
@@ -451,7 +458,7 @@ def login_ui():
     with c1:
         entrar = st.button("Entrar", use_container_width=True)
     with c2:
-        st.markdown('<div class="muted" style="padding-top:8px;">Segurança e controle num só lugar.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="muted" style="padding-top:8px;">Sistema leve, rápido e organizado.</div>', unsafe_allow_html=True)
 
     if entrar:
         u = da.autenticar_usuario(username.strip(), senha)
@@ -463,10 +470,9 @@ def login_ui():
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # status card
     st.markdown('<div class="login-card">', unsafe_allow_html=True)
     ok_conn, msg_conn = test_db_connection()
-    st.markdown("### Infra")
+    st.markdown("### Infraestrutura")
     a, b = st.columns(2)
     with a:
         st.markdown("**Status do banco**")
@@ -480,9 +486,6 @@ def login_ui():
     return None
 
 
-# =========================
-# Pages
-# =========================
 def page_clientes():
     render_topbar("Clientes", "Cadastro e busca")
     colA, colB = st.columns([1.2, 1])
@@ -526,7 +529,7 @@ def page_clientes():
         rows = da.listar_clientes(ativo_only=ativo_only, q=q.strip() if q else None)
         if rows:
             df = pd.DataFrame(rows)
-            st.dataframe(df[["id","nome","cpf_cnpj","whatsapp","email","ativo"]], use_container_width=True, hide_index=True)
+            st.dataframe(df[["id", "nome", "cpf_cnpj", "whatsapp", "email", "ativo"]], use_container_width=True, hide_index=True)
         else:
             st.info("Sem clientes ainda.")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -569,7 +572,7 @@ def page_funcionarios():
         rows = da.listar_funcionarios(ativo_only=ativo_only, q=q.strip() if q else None)
         if rows:
             df = pd.DataFrame(rows)
-            st.dataframe(df[["id","nome","funcao","telefone","ativo"]], use_container_width=True, hide_index=True)
+            st.dataframe(df[["id", "nome", "funcao", "telefone", "ativo"]], use_container_width=True, hide_index=True)
         else:
             st.info("Sem funcionários ainda.")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -592,7 +595,7 @@ def page_usuarios():
             email = st.text_input("E-mail")
             username = st.text_input("Username")
             senha = st.text_input("Senha", type="password")
-            perfil = st.selectbox("Perfil", ["admin","comercial","producao","leitura"], index=3)
+            perfil = st.selectbox("Perfil", ["admin", "comercial", "producao", "leitura"], index=3)
             setor = st.text_input("Setor")
             ok = st.form_submit_button("Criar", use_container_width=True)
             if ok:
@@ -622,21 +625,21 @@ def page_usuarios():
             return None
 
         df = pd.DataFrame(users)
-        st.dataframe(df[["id","nome","username","perfil","setor","ativo"]], use_container_width=True, hide_index=True)
+        st.dataframe(df[["id", "nome", "username", "perfil", "setor", "ativo"]], use_container_width=True, hide_index=True)
 
         uid = st.selectbox("Selecionar usuário pelo ID", df["id"].tolist())
         urow = df[df["id"] == uid].iloc[0].to_dict()
 
         with st.form("f_user_edit"):
-            nome = st.text_input("Nome", value=urow.get("nome",""))
-            email = st.text_input("E-mail", value=urow.get("email",""))
-            username = st.text_input("Username", value=urow.get("username",""))
+            nome = st.text_input("Nome", value=urow.get("nome", ""))
+            email = st.text_input("E-mail", value=urow.get("email", ""))
+            username = st.text_input("Username", value=urow.get("username", ""))
             perfil = st.selectbox(
                 "Perfil",
-                ["admin","comercial","producao","leitura"],
-                index=["admin","comercial","producao","leitura"].index(urow.get("perfil","leitura"))
+                ["admin", "comercial", "producao", "leitura"],
+                index=["admin", "comercial", "producao", "leitura"].index(urow.get("perfil", "leitura"))
             )
-            setor = st.text_input("Setor", value=urow.get("setor",""))
+            setor = st.text_input("Setor", value=urow.get("setor", ""))
             ativo = st.toggle("Ativo", value=bool(urow.get("ativo", True)))
             senha = st.text_input("Nova senha (opcional)", type="password")
             ok = st.form_submit_button("Salvar alterações", use_container_width=True)
@@ -682,7 +685,8 @@ def page_orcamento():
                 oid, cod = da.criar_orcamento({
                     "cliente_id": c_map[cli],
                     "validade": validade,
-                    "observacoes": observacoes
+                    "observacoes": observacoes,
+                    "status": "Aberto",
                 })
                 st.success(f"Orçamento criado. Código {cod}")
                 st.session_state.orcamento_id = oid
@@ -695,7 +699,7 @@ def page_orcamento():
         rows = da.listar_orcamentos(q=q.strip() if q else None)
         if rows:
             df = pd.DataFrame(rows)
-            st.dataframe(df[["id","codigo","cliente_nome","status","total_estimado","created_at"]], use_container_width=True, hide_index=True)
+            st.dataframe(df[["id", "codigo", "cliente_nome", "status", "total_estimado", "created_at"]], use_container_width=True, hide_index=True)
             pick = st.selectbox("Selecionar orçamento (ID)", df["id"].tolist())
             c1, c2 = st.columns(2)
             with c1:
@@ -726,22 +730,23 @@ def page_orcamento():
             st.markdown("</div>", unsafe_allow_html=True)
             return None
 
-        status = orc.get("status") or "Aberto"
+        status = (orc.get("status") or "Aberto").strip()
         badge_class = "ok" if status == "Aprovado" else "warn" if status == "Aberto" else ""
+
         st.markdown(
             f"""
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <span class="kbadge {badge_class}">Código: <b>{orc.get('codigo')}</b></span>
-              <span class="kbadge">Status: <b>{status}</b></span>
-              <span class="kbadge">Cliente: <b>{orc.get('cliente_nome')}</b></span>
+              <span class="kbadge {badge_class}">Código <b>{orc.get('codigo')}</b></span>
+              <span class="kbadge">Status <b>{status}</b></span>
+              <span class="kbadge">Cliente <b>{orc.get('cliente_nome')}</b></span>
             </div>
             """,
             unsafe_allow_html=True
         )
 
         itens = da.listar_orcamento_itens(int(oid))
-        df_it = pd.DataFrame(itens) if itens else pd.DataFrame(columns=["descricao","qtd","unidade","valor_unit"])
-        df_it = df_it[[c for c in ["descricao","qtd","unidade","valor_unit"] if c in df_it.columns]]
+        df_it = pd.DataFrame(itens) if itens else pd.DataFrame(columns=["descricao", "qtd", "unidade", "valor_unit"])
+        df_it = df_it[[c for c in ["descricao", "qtd", "unidade", "valor_unit"] if c in df_it.columns]]
 
         disabled_edit = (status == "Aprovado")
 
@@ -754,6 +759,7 @@ def page_orcamento():
         )
 
         c1, c2, c3 = st.columns([1, 1, 1])
+
         with c1:
             if st.button("Salvar itens", use_container_width=True, disabled=disabled_edit):
                 total = da.salvar_orcamento_itens(int(oid), edited.to_dict("records"))
@@ -761,17 +767,13 @@ def page_orcamento():
                 st.rerun()
 
         with c2:
-            # Ajuste 5: aprova orçamento, mas NÃO gera pedido aqui
             if st.button("Aprovar orçamento", use_container_width=True, disabled=(status == "Aprovado")):
-                # precisa existir no seu data_access: atualizar_status_orcamento
-                # se não existir, crie lá (UPDATE orcamentos SET status = %s WHERE id = %s)
                 ok2, msg2 = da.atualizar_status_orcamento(int(oid), "Aprovado")
                 st.success(msg2) if ok2 else st.error(msg2)
                 if ok2:
                     st.rerun()
 
         with c3:
-            # Ajuste 3: PDF com logo
             try:
                 pdf_bytes = gerar_pdf_orcamento_bytes(int(oid))
                 st.download_button(
@@ -793,7 +795,6 @@ def page_orcamento():
 def page_pedido():
     render_topbar("Pedido", "Crie pedidos manuais ou gere a partir de orçamentos aprovados.")
 
-    # bloco: gerar pedido a partir de orçamento aprovado
     st.markdown('<div class="cardx">', unsafe_allow_html=True)
     st.subheader("Gerar pedido a partir de orçamento aprovado")
 
@@ -803,22 +804,22 @@ def page_pedido():
         st.info("Nenhum orçamento aprovado ainda. Aprova na aba Orçamento e volta aqui.")
     else:
         df_ap = pd.DataFrame(aprovados)
-        st.dataframe(df_ap[["id","codigo","cliente_nome","status","total_estimado","created_at"]], use_container_width=True, hide_index=True)
+        st.dataframe(df_ap[["id", "codigo", "cliente_nome", "status", "total_estimado", "created_at"]], use_container_width=True, hide_index=True)
         pick_orc = st.selectbox("Escolher orçamento aprovado (ID)", df_ap["id"].tolist())
+
         c1, c2 = st.columns([1, 1])
         with c1:
-            responsavel_id = None
             funcionarios = da.listar_funcionarios(ativo_only=True) or []
             f_map = {"Sem responsável": None}
             for f in funcionarios:
                 f_map[f"{f['nome']} (ID {f['id']})"] = f["id"]
             resp = st.selectbox("Responsável", list(f_map.keys()), key="resp_orc_to_ped")
             responsavel_id = f_map[resp]
+
         with c2:
             entrega_prev = st.date_input("Entrega prevista", value=None, key="entrega_orc_to_ped")
 
         if st.button("Gerar pedido agora", use_container_width=True):
-            # aqui sim cria pedido a partir do orçamento
             ok, msg, pedido_id, pedido_codigo = da.gerar_pedido_a_partir_orcamento(
                 int(pick_orc),
                 responsavel_id=responsavel_id,
@@ -836,7 +837,6 @@ def page_pedido():
 
     st.divider()
 
-    # criação manual de pedido
     st.markdown('<div class="cardx">', unsafe_allow_html=True)
     st.subheader("Criar pedido manual")
 
@@ -846,7 +846,7 @@ def page_pedido():
         st.markdown("</div>", unsafe_allow_html=True)
         return None
 
-    funcionarios = da.listar_funcionarios(ativo_only=True)
+    funcionarios = da.listar_funcionarios(ativo_only=True) or []
     f_map = {"Sem responsável": None}
     for f in funcionarios:
         f_map[f"{f['nome']} (ID {f['id']})"] = f["id"]
@@ -883,8 +883,8 @@ def page_pedido():
             st.info("Crie ou selecione um pedido abaixo.")
         else:
             itens = da.listar_pedido_itens(pid)
-            df_it = pd.DataFrame(itens) if itens else pd.DataFrame(columns=["descricao","qtd","unidade","valor_unit"])
-            df_it = df_it[[c for c in ["descricao","qtd","unidade","valor_unit"] if c in df_it.columns]]
+            df_it = pd.DataFrame(itens) if itens else pd.DataFrame(columns=["descricao", "qtd", "unidade", "valor_unit"])
+            df_it = df_it[[c for c in ["descricao", "qtd", "unidade", "valor_unit"] if c in df_it.columns]]
             edited = st.data_editor(df_it, num_rows="dynamic", use_container_width=True, key="ped_itens")
             if st.button("Salvar itens do pedido", use_container_width=True):
                 total = da.salvar_pedido_itens(pid, edited.to_dict("records"))
@@ -895,14 +895,13 @@ def page_pedido():
 
     st.divider()
 
-    # lista pedidos
     st.markdown('<div class="cardx">', unsafe_allow_html=True)
     st.subheader("Lista de pedidos")
     q = st.text_input("Buscar pedido", placeholder="código ou observação", key="q_ped")
     rows = da.listar_pedidos(q=q.strip() if q else None)
     if rows:
         df = pd.DataFrame(rows)
-        st.dataframe(df[["id","codigo","cliente_nome","status","etapa_atual","status_etapa","responsavel_nome","data_entrega_prevista","total"]], use_container_width=True, hide_index=True)
+        st.dataframe(df[["id", "codigo", "cliente_nome", "status", "etapa_atual", "status_etapa", "responsavel_nome", "data_entrega_prevista", "total"]], use_container_width=True, hide_index=True)
         pick = st.selectbox("Selecionar pedido (ID)", df["id"].tolist())
         if st.button("Abrir pedido", use_container_width=True):
             st.session_state.pedido_id = int(pick)
@@ -917,7 +916,7 @@ def page_pedido():
 def page_producao():
     render_topbar("Produção", "Kanban com etapas essenciais e cards mais bonitos.")
 
-    # Ajuste 4: remover Expedição e Transporte do Kanban
+    # Remove Expedição e Transporte do Kanban
     etapas_filtradas = [e for e in ETAPAS_PRODUCAO if str(e).strip().lower() not in ["expedição", "expedicao", "transporte"]]
     if not etapas_filtradas:
         etapas_filtradas = ETAPAS_PRODUCAO
@@ -932,7 +931,7 @@ def page_producao():
 
     for i, etapa in enumerate(etapas_filtradas):
         with cols[i]:
-            st.markdown(f'<div class="cardx">', unsafe_allow_html=True)
+            st.markdown('<div class="cardx">', unsafe_allow_html=True)
             st.markdown(f'<div class="coltitle">{etapa}</div>', unsafe_allow_html=True)
 
             pedidos = grupos.get(etapa, []) or []
@@ -943,13 +942,13 @@ def page_producao():
 
             for p in pedidos:
                 status_et = p.get("status_etapa") or "A fazer"
-                cls = "ok" if status_et.lower().startswith("concl") else "warn" if status_et.lower().startswith("em") else ""
+                cls = "ok" if str(status_et).lower().startswith("concl") else "warn" if str(status_et).lower().startswith("em") else ""
 
                 st.markdown(
                     f"""
                     <div class="cardx" style="margin-bottom:10px;">
                       <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;">
-                        <div style="font-weight:900;">{p.get('codigo')}</div>
+                        <div style="font-weight:1000;">{p.get('codigo')}</div>
                         <span class="kbadge {cls}">{status_et}</span>
                       </div>
                       <div class="muted" style="margin-top:4px;">{p.get('cliente_nome','')}</div>
@@ -959,7 +958,7 @@ def page_producao():
                     unsafe_allow_html=True
                 )
 
-                with st.expander("Mover / Atualizar", expanded=False):
+                with st.expander("Mover e atualizar", expanded=False):
                     nova_etapa = st.selectbox(
                         "Etapa",
                         etapas_filtradas,
@@ -1001,7 +1000,7 @@ def page_vendas():
     if peds:
         df = pd.DataFrame(peds)
         st.dataframe(
-            df[["codigo","cliente_nome","status","etapa_atual","status_etapa","data_entrega_prevista","total"]].head(50),
+            df[["codigo", "cliente_nome", "status", "etapa_atual", "status_etapa", "data_entrega_prevista", "total"]].head(50),
             use_container_width=True,
             hide_index=True
         )
@@ -1015,9 +1014,8 @@ def page_vendas():
 def sidebar():
     u = st.session_state.user or {}
     st.sidebar.image(LOGO_URL, use_container_width=True)
-    st.sidebar.markdown(f"**{u.get('nome','Usuário')}**")
-    st.sidebar.caption(f"Perfil: {u.get('perfil','-')}")
-
+    st.sidebar.markdown(f"**{u.get('nome', 'Usuário')}**")
+    st.sidebar.caption(f"Perfil: {u.get('perfil', '-')}")
     if st.sidebar.button("Sair", use_container_width=True):
         logout()
 
