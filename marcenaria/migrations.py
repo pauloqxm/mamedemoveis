@@ -1,10 +1,18 @@
 from .db_connector import get_db_connection
 from .auth import hash_password
 
+SCHEMA = "bd_marcenaria"
+
+
 def init_database():
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
+                # 1) garante schema e aponta search_path
+                cur.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")
+                cur.execute(f"SET search_path TO {SCHEMA}, public")
+
+                # 2) tabelas (todas dentro do schema)
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS usuarios (
                         id SERIAL PRIMARY KEY,
@@ -55,7 +63,7 @@ def init_database():
                         id SERIAL PRIMARY KEY,
                         codigo VARCHAR(20) UNIQUE,
                         cliente_id INTEGER REFERENCES clientes(id),
-                        status VARCHAR(30) DEFAULT 'Rascunho',
+                        status VARCHAR(30) DEFAULT 'Aberto',
                         total_estimado DECIMAL(12,2) DEFAULT 0,
                         validade DATE,
                         observacoes TEXT DEFAULT '',
@@ -63,6 +71,7 @@ def init_database():
                         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
+
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS orcamento_itens (
                         id SERIAL PRIMARY KEY,
@@ -92,6 +101,7 @@ def init_database():
                         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
+
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS pedido_itens (
                         id SERIAL PRIMARY KEY,
@@ -118,19 +128,49 @@ def init_database():
                     )
                 """)
 
+                # 3) fila de automação (Make/WhatsApp) - necessária pro mover_pedido_etapa
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS producao_eventos (
+                        id SERIAL PRIMARY KEY,
+                        pedido_id INTEGER REFERENCES pedidos(id) ON DELETE CASCADE,
+                        cliente_id INTEGER REFERENCES clientes(id),
+                        cliente_nome VARCHAR(200) DEFAULT '',
+                        cliente_whatsapp VARCHAR(50) DEFAULT '',
+                        etapa VARCHAR(60) NOT NULL,
+                        status VARCHAR(20) NOT NULL,
+                        responsavel_id INTEGER REFERENCES funcionarios(id),
+                        observacoes TEXT DEFAULT '',
+                        processado BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                # 4) índices
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_pedidos_etapa ON pedidos(etapa_atual)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_pedidos_status ON pedidos(status)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_orcamentos_cliente ON orcamentos(cliente_id)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_pedidos_cliente ON pedidos(cliente_id)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_eventos_processado ON producao_eventos(processado)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_eventos_pedido ON producao_eventos(pedido_id)")
 
+                # 5) admin padrão
                 cur.execute("SELECT COUNT(*) FROM usuarios WHERE username='admin'")
                 if cur.fetchone()[0] == 0:
                     cur.execute("""
                         INSERT INTO usuarios (nome,email,username,senha_hash,perfil,setor,ativo)
                         VALUES (%s,%s,%s,%s,%s,%s,%s)
-                    """, ("Administrador", "admin@marcenaria.com", "admin", hash_password("admin123"), "admin", "Admin", True))
+                    """, (
+                        "Administrador",
+                        "admin@marcenaria.com",
+                        "admin",
+                        hash_password("admin123"),
+                        "admin",
+                        "Admin",
+                        True
+                    ))
 
                 conn.commit()
+
         return True, "✅ Banco inicializado no schema bd_marcenaria."
     except Exception as e:
         return False, f"❌ Erro init: {str(e)}"
