@@ -1,5 +1,5 @@
 import io
-from datetime import date, datetime
+from datetime import date
 from urllib.request import urlopen
 
 import pandas as pd
@@ -13,9 +13,13 @@ from marcenaria.config import ETAPAS_PRODUCAO, STATUS_ETAPA
 APP_TITLE = "Mamede Móveis Projetados | Sistema Interno"
 LOGO_URL = "https://i.ibb.co/FkXDym6H/logo-mamede.png"
 
+# Remove do Kanban
+ETAPAS_KANBAN_EXCLUIR = {"Expedição", "Transporte"}
+ETAPAS_PRODUCAO_UI = [e for e in ETAPAS_PRODUCAO if e not in ETAPAS_KANBAN_EXCLUIR]
+
 st.set_page_config(page_title=APP_TITLE, layout="wide", initial_sidebar_state="expanded")
 
-# Força tema CLARO sempre
+# Força tema claro sempre
 st.markdown(
     """
 <script>
@@ -34,6 +38,9 @@ window.parent.postMessage({ type: "streamlit:setTheme", theme: theme }, "*");
 )
 
 
+# =========================
+# HELPERS
+# =========================
 def _try_fetch_bytes(url: str, timeout: int = 10):
     try:
         with urlopen(url, timeout=timeout) as r:
@@ -80,8 +87,8 @@ def fmt_dt_br(x):
         return str(x)
 
 
-# ✅ agora sempre timezone-aware (UTC), evita conflito com TIMESTAMPTZ
 def now_ts_utc():
+    # timezone-aware sempre (evita erro com TIMESTAMPTZ)
     return pd.Timestamp.now(tz="UTC")
 
 
@@ -124,7 +131,7 @@ def inject_css():
   --sidebar-bg2:#0F172A;
   --sidebar-line: rgba(255,255,255,.10);
   --sidebar-text:#FFFFFF;
-  --sidebar-muted: rgba(255,255,255,.70);
+  --sidebar-muted: rgba(255,255,255,.72);
 }
 
 .stApp{
@@ -136,11 +143,12 @@ def inject_css():
 }
 .block-container{ padding-top: 1.1rem; padding-bottom: 2rem; }
 
+/* Inputs */
 .stTextInput input, .stTextArea textarea, .stDateInput input, .stSelectbox div[data-baseweb="select"]{
   border-radius: 12px !important;
 }
 
-/* Labels e textos do formulário sempre visíveis */
+/* Labels e textos sempre visíveis */
 [data-testid="stWidgetLabel"] > div,
 [data-testid="stWidgetLabel"] span,
 label, .stMarkdown, .stCaption, p{
@@ -154,7 +162,7 @@ label, .stMarkdown, .stCaption, p{
   border: 1px solid rgba(242,193,78,.55) !important;
   background: linear-gradient(180deg, var(--brand), var(--brand2)) !important;
   color: #0F172A !important;
-  font-weight: 900 !important;
+  font-weight: 950 !important;
   box-shadow: 0 10px 18px rgba(234,179,8,.18);
   transition: transform .08s ease, filter .12s ease;
 }
@@ -173,19 +181,11 @@ label, .stMarkdown, .stCaption, p{
 }
 [data-testid="stMetricLabel"]{
   color: #0F172A !important;
-  font-weight: 900 !important;
+  font-weight: 950 !important;
 }
 [data-testid="stMetricValue"]{
   color: #0F172A !important;
   font-weight: 1000 !important;
-}
-
-/* Dataframe */
-.stDataFrame{
-  border-radius: var(--radius);
-  overflow: hidden;
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
 }
 
 /* Cards */
@@ -233,6 +233,7 @@ label, .stMarkdown, .stCaption, p{
   font-size: 12px;
   white-space: nowrap;
 }
+
 .kbadge{
   display:inline-block;
   padding: 4px 10px;
@@ -254,7 +255,7 @@ label, .stMarkdown, .stCaption, p{
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 950;
   border: 1px solid transparent;
 }
 .sem-green{ background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.35); color: #166534; }
@@ -262,7 +263,7 @@ label, .stMarkdown, .stCaption, p{
 .sem-red{ background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.35); color: #991b1b; }
 .sem-gray{ background: rgba(148,163,184,.12); border-color: rgba(148,163,184,.35); color: #334155; }
 
-/* Sidebar dark + filtros com fonte branca */
+/* Sidebar dark + fonte branca */
 [data-testid="stSidebar"]{
   background: linear-gradient(180deg, var(--sidebar-bg1) 0%, var(--sidebar-bg2) 100%) !important;
   border-right: 1px solid var(--sidebar-line) !important;
@@ -286,7 +287,7 @@ label, .stMarkdown, .stCaption, p{
   color: #fff !important;
 }
 
-/* Botão recolher sidebar - garante visível */
+/* Botão recolher sidebar sempre visível */
 [data-testid="stHeader"]{
   background: rgba(255,255,255,.92) !important;
   border-bottom: 1px solid var(--line) !important;
@@ -305,7 +306,7 @@ button[data-testid="stSidebarCollapseButton"]:hover{
   border-color: #CBD5E1 !important;
 }
 
-/* Botões do menu na sidebar */
+/* Botões de navegação da sidebar */
 .navbtn{
   width: 100%;
   border-radius: 14px;
@@ -399,6 +400,9 @@ def filter_by_month(rows, date_col="created_at"):
     return out
 
 
+# =========================
+# PDF ORÇAMENTO
+# =========================
 def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
@@ -488,6 +492,9 @@ def gerar_pdf_orcamento_bytes(orcamento_id: int) -> bytes:
     return buf.getvalue()
 
 
+# =========================
+# EXCLUSÃO (com schema bd_marcenaria)
+# =========================
 def excluir_pedido_db(pedido_id: int):
     with get_db_connection() as conn:
         with conn.cursor() as cur:
@@ -509,7 +516,7 @@ def excluir_orcamento_db(orcamento_id: int):
 
 
 # =========================
-# HISTÓRICO ETAPAS + ANALYTICS (SEMÁFORO / GARGALOS)
+# HISTÓRICO ETAPAS + ANALYTICS
 # =========================
 def fetch_hist_for_pedidos(pedido_ids: list[int]):
     if not pedido_ids:
@@ -557,7 +564,7 @@ def _nice_days(d):
 
 def compute_etapa_stats(pedidos_rows: list[dict]):
     """
-    ✅ CORREÇÃO: tudo vira UTC (timezone-aware), assim (fim - início) nunca quebra.
+    CORREÇÃO: tudo UTC timezone-aware, fim_eff - ini_eff não quebra.
     """
     agora = now_ts_utc()
 
@@ -568,21 +575,16 @@ def compute_etapa_stats(pedidos_rows: list[dict]):
 
     df = pd.DataFrame(hist)
 
-    # ✅ sempre UTC
     for c in ["inicio_em", "fim_em", "created_at"]:
         if c in df.columns:
             df[c] = pd.to_datetime(df[c], errors="coerce", utc=True)
 
-    # início/fim efetivos (UTC)
     df["ini_eff"] = df["inicio_em"].fillna(df["created_at"])
     df["fim_eff"] = df["fim_em"].fillna(agora)
 
-    # Se algum ini_eff ficou NaT, tenta segurar com created_at (ou cai fora)
     df = df[~df["ini_eff"].isna()].copy()
-
     df["dur_days"] = (df["fim_eff"] - df["ini_eff"]).dt.total_seconds() / 86400.0
     df["dur_days"] = df["dur_days"].clip(lower=0)
-
     df["is_open"] = df["fim_em"].isna()
 
     stats = {}
@@ -627,7 +629,7 @@ def render_gargalos_panel(stats: dict):
     st.subheader("🚦 Gargalos e tempo médio por etapa")
 
     if not stats:
-        st.info("Sem histórico suficiente para calcular gargalos. Quando começar a mover no Kanban, isso vira ouro.")
+        st.info("Sem histórico suficiente para calcular gargalos. Use o Kanban para registrar movimentações.")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
@@ -657,16 +659,16 @@ def render_gargalos_panel(stats: dict):
         show2 = df.sort_values("Etapa")[["Etapa", "Média fechados (dias)", "Média geral (dias)"]]
         st.dataframe(show2, use_container_width=True, hide_index=True)
 
-    st.caption("O semáforo usa a média dos eventos fechados. Se não tiver fechados, cai pra média geral.")
+    st.caption("Semáforo usa média dos eventos fechados; se não tiver, usa média geral.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def render_timeline_pedidos_hard(rows, etapa_stats: dict, pedido_current: dict):
+def render_timeline_pedidos(rows, etapa_stats: dict, pedido_current: dict):
     st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
-    st.subheader("⏳ Linha do tempo por etapas (tempo real)")
+    st.subheader("⏳ Linha do tempo dos pedidos (andamento e prazo de entrega)")
 
     if not rows:
-        st.info("Sem pedidos no período para acompanhar.")
+        st.info("Sem pedidos para acompanhar.")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
@@ -676,7 +678,7 @@ def render_timeline_pedidos_hard(rows, etapa_stats: dict, pedido_current: dict):
     q = st.text_input(
         "Filtrar na linha do tempo",
         placeholder="código, cliente, etapa, responsável",
-        key="tl_q_hard",
+        key="tl_q",
     )
 
     base_rows = rows
@@ -778,13 +780,11 @@ def render_timeline_pedidos_hard(rows, etapa_stats: dict, pedido_current: dict):
         )
 
         if dfh.empty:
-            st.info("Sem histórico de etapas registrado ainda.")
             st.divider()
             continue
 
         dfp = dfh[dfh["pedido_id"] == pid].copy()
         if dfp.empty:
-            st.info("Sem histórico de etapas registrado ainda.")
             st.divider()
             continue
 
@@ -798,23 +798,6 @@ def render_timeline_pedidos_hard(rows, etapa_stats: dict, pedido_current: dict):
         dfp["dur_days"] = (dfp["fim_eff"] - dfp["ini_eff"]).dt.total_seconds() / 86400.0
         dfp["dur_days"] = dfp["dur_days"].clip(lower=0)
         dfp["is_open"] = dfp["fim_em"].isna()
-
-        total_hist = float(dfp["dur_days"].sum()) if len(dfp) else 0.0
-        etapas_sum = dfp.groupby("etapa")["dur_days"].sum().sort_values(ascending=False).reset_index()
-
-        c1, c2, c3 = st.columns([1, 1, 1])
-        with c1:
-            st.metric("🧠 Tempo total no histórico", _nice_days(total_hist))
-        with c2:
-            st.metric("🧱 Etapa atual", etapa_atual)
-        with c3:
-            st.metric("📌 Status etapa", status_et)
-
-        st.markdown('<div class="cardx" style="margin-top:10px;">', unsafe_allow_html=True)
-        st.markdown("**📊 Tempo acumulado por etapa**")
-        for _, r in etapas_sum.iterrows():
-            st.markdown(f"- **{r['etapa']}**: {_nice_days(float(r['dur_days']))}")
-        st.markdown("</div>", unsafe_allow_html=True)
 
         with st.expander("🧾 Ver linha do tempo detalhada", expanded=False):
             dfp = dfp.sort_values(["ini_eff", "id"])
@@ -854,7 +837,7 @@ def render_timeline_pedidos_hard(rows, etapa_stats: dict, pedido_current: dict):
 
         st.divider()
 
-    st.caption("Mostrando até 60 pedidos na linha do tempo para manter rápido.")
+    st.caption("Mostrando até 60 pedidos para manter o sistema rápido.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -909,10 +892,10 @@ def login_ui():
 
 
 # =========================
-# PÁGINAS (as que estavam no arquivo anterior)
+# PÁGINAS
 # =========================
 def page_clientes():
-    render_topbar("Clientes", "Cadastro e consulta")
+    render_topbar("🧾 Clientes", "Cadastro e consulta")
     colA, colB = st.columns([1.3, 1])
 
     with colA:
@@ -975,7 +958,7 @@ def page_clientes():
 
 
 def page_funcionarios():
-    render_topbar("Funcionários", "Cadastro e consulta")
+    render_topbar("👷 Funcionários", "Cadastro e consulta")
     colA, colB = st.columns([1.3, 1])
 
     with colA:
@@ -1029,7 +1012,7 @@ def page_funcionarios():
 
 
 def page_vendas():
-    render_topbar("Dashboard", "Semáforo por etapa e ranking de gargalos")
+    render_topbar("📊 Dashboard", "KPIs e gargalos por etapa")
 
     orcs_all = da.listar_orcamentos() or []
     peds_all = da.listar_pedidos() or []
@@ -1039,6 +1022,7 @@ def page_vendas():
 
     total_orc = len(orcs)
     total_ped = len(peds)
+
     total_ped_valor = sum(safe_float(p.get("total"), 0) for p in peds)
     total_orc_valor = sum(safe_float(o.get("total_estimado"), 0) for o in orcs)
 
@@ -1048,12 +1032,12 @@ def page_vendas():
     c1.metric("🧾 Orçamentos", total_orc)
     c2.metric("📦 Pedidos", total_ped)
     c3.metric("💰 Total em pedidos", brl(total_ped_valor))
-    c4.metric("📊 Total em orçamentos", brl(total_orc_valor))
+    c4.metric("📈 Total em orçamentos", brl(total_orc_valor))
 
     render_gargalos_panel(etapa_stats)
 
     st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
-    st.subheader("📌 Últimos pedidos")
+    st.subheader("🧩 Últimos pedidos (filtrados)")
     if peds:
         df = pd.DataFrame(peds)
         if "data_entrega_prevista" in df.columns:
@@ -1070,9 +1054,401 @@ def page_vendas():
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-# As páginas Orçamento, Pedido e Produção continuam como estavam na versão anterior.
-# (Se você quiser, eu te devolvo também com elas aqui, mas como você pediu "ajuste e devolva",
-# eu mantive o arquivo completo acima com o fix do timezone nos cálculos principais.)
+def page_orcamento():
+    render_topbar("🧾 Orçamentos", "Criar, editar, aprovar e gerar PDF. Não gera pedido automático.")
+
+    clientes = da.listar_clientes(ativo_only=True) or []
+    if not clientes:
+        st.info("Cadastre um cliente primeiro.")
+        return
+
+    c_map = {f"{c['nome']} (ID {c['id']})": c["id"] for c in clientes}
+
+    colA, colB = st.columns([1.05, 0.95])
+
+    # Criar orçamento
+    with colA:
+        st.markdown('<div class="cardx">', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">🧾 Criar orçamento</div>', unsafe_allow_html=True)
+        with st.form("f_orc", clear_on_submit=False):
+            cli = st.selectbox("Cliente", list(c_map.keys()))
+            validade = st.date_input("Validade", value=None)
+            observacoes = st.text_area("Observações", placeholder="Detalhes, condições e informações extras", height=90)
+            criar = st.form_submit_button("Criar orçamento", use_container_width=True)
+            if criar:
+                oid, cod = da.criar_orcamento(
+                    {
+                        "cliente_id": c_map[cli],
+                        "validade": validade,
+                        "observacoes": observacoes,
+                    }
+                )
+                st.success(f"Orçamento criado. Código {cod}")
+                st.session_state.orcamento_id = oid
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown('<div class="cardx" style="margin-top:12px;">', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">🗑️ Excluir orçamento</div>', unsafe_allow_html=True)
+        st.caption("Só permite excluir se não houver pedido gerado a partir dele.")
+        oid_del = st.number_input("ID do orçamento para excluir", min_value=1, step=1, value=1, key="orc_del_id")
+        confirm = st.checkbox("Confirmo que quero excluir este orçamento", key="orc_del_confirm")
+        if st.button("Excluir orçamento", use_container_width=True, disabled=not confirm):
+            ok, msg = excluir_orcamento_db(int(oid_del))
+            st.success(msg) if ok else st.error(msg)
+            if ok:
+                if st.session_state.get("orcamento_id") == int(oid_del):
+                    st.session_state.orcamento_id = None
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Editar itens / Aprovar / PDF
+    with colB:
+        st.markdown('<div class="cardx">', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">🧩 Itens do orçamento</div>', unsafe_allow_html=True)
+
+        oid = st.session_state.get("orcamento_id")
+        if not oid:
+            st.info("Crie ou selecione um orçamento abaixo.")
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            orc = da.obter_orcamento_por_id(int(oid))
+            if not orc:
+                st.warning("Orçamento não encontrado.")
+                st.markdown("</div>", unsafe_allow_html=True)
+                return
+
+            st.markdown(
+                f"""
+                <div class="muted">Código <b>{orc.get('codigo')}</b> • Status <b>{orc.get('status')}</b></div>
+                <div class="muted">Cliente <b>{orc.get('cliente_nome')}</b> • Validade <b>{fmt_date_br(orc.get('validade'))}</b></div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            itens = da.listar_orcamento_itens(int(oid)) or []
+            df_it = pd.DataFrame(itens) if itens else pd.DataFrame(columns=["descricao", "qtd", "unidade", "valor_unit"])
+            df_it = df_it[[c for c in ["descricao", "qtd", "unidade", "valor_unit"] if c in df_it.columns]]
+
+            disabled_edit = (orc.get("status") == "Aprovado")
+            edited = st.data_editor(
+                df_it,
+                num_rows="dynamic",
+                use_container_width=True,
+                key="orc_itens",
+                disabled=disabled_edit,
+            )
+
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                if st.button("💾 Salvar itens", use_container_width=True, disabled=disabled_edit):
+                    total = da.salvar_orcamento_itens(int(oid), edited.to_dict("records"))
+                    st.success(f"Itens salvos. Total estimado {brl(total)}")
+                    st.rerun()
+
+            with c2:
+                # Aqui só aprova, NÃO gera pedido
+                if st.button("✅ Aprovar orçamento", use_container_width=True, disabled=disabled_edit):
+                    ok = da.aprovar_orcamento(int(oid))
+                    if ok:
+                        st.success("Orçamento aprovado. Agora gere o pedido na página PEDIDOS.")
+                        st.rerun()
+                    else:
+                        st.error("Falha ao aprovar.")
+
+            with c3:
+                # PDF sempre disponível (melhor ainda quando tiver itens)
+                try:
+                    pdf_bytes = gerar_pdf_orcamento_bytes(int(oid))
+                    st.download_button(
+                        "📄 Baixar PDF",
+                        data=pdf_bytes,
+                        file_name=f"orcamento_{orc.get('codigo','')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                    )
+                except Exception as e:
+                    st.warning(f"Não consegui gerar PDF: {e}")
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    # Lista de orçamentos
+    st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
+    st.subheader("📚 Lista de orçamentos (filtrados)")
+    q = st.text_input("Buscar orçamento", placeholder="código ou observação")
+    rows = da.listar_orcamentos(q=q.strip() if q else None) or []
+    rows = filter_by_month(rows, date_col="created_at")
+
+    if rows:
+        df = pd.DataFrame(rows)
+        if "created_at" in df.columns:
+            df["created_at"] = df["created_at"].apply(fmt_date_br)
+        if "total_estimado" in df.columns:
+            df["total_estimado"] = df["total_estimado"].apply(brl)
+        cols = [c for c in ["id", "codigo", "cliente_nome", "status", "total_estimado", "created_at"] if c in df.columns]
+        st.dataframe(df[cols], use_container_width=True, hide_index=True)
+
+        pick = st.selectbox("Selecionar orçamento (ID)", df["id"].tolist())
+        if st.button("Abrir orçamento", use_container_width=True):
+            st.session_state.orcamento_id = int(pick)
+            st.rerun()
+    else:
+        st.info("Sem orçamentos no filtro selecionado.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def page_pedido():
+    render_topbar("📦 Pedidos", "Criar, editar, aprovar pedidos vindos de orçamento e acompanhar timeline.")
+
+    clientes = da.listar_clientes(ativo_only=True) or []
+    if not clientes:
+        st.info("Cadastre um cliente primeiro.")
+        return
+
+    funcionarios = da.listar_funcionarios(ativo_only=True) or []
+    f_map = {"Sem responsável": None}
+    for f in funcionarios:
+        f_map[f"{f['nome']} (ID {f['id']})"] = f["id"]
+
+    c_map = {f"{c['nome']} (ID {c['id']})": c["id"] for c in clientes}
+
+    colA, colB = st.columns([1.05, 0.95])
+
+    # Criar pedido manual
+    with colA:
+        st.markdown('<div class="cardx">', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">🧾 Criar pedido manual</div>', unsafe_allow_html=True)
+        with st.form("f_ped", clear_on_submit=False):
+            cli = st.selectbox("Cliente", list(c_map.keys()))
+            resp = st.selectbox("Responsável", list(f_map.keys()))
+            entrega = st.date_input("Entrega prevista", value=None, key="entrega_prev")
+            observacoes = st.text_area("Observações", placeholder="Regras, detalhes do pedido e observações", key="obs_ped", height=90)
+            criar = st.form_submit_button("Criar pedido", use_container_width=True)
+            if criar:
+                pid, cod = da.criar_pedido(
+                    {
+                        "cliente_id": c_map[cli],
+                        "responsavel_id": f_map[resp],
+                        "data_entrega_prevista": entrega,
+                        "observacoes": observacoes,
+                        "etapa_atual": ETAPAS_PRODUCAO[0],
+                        "status_etapa": STATUS_ETAPA[0],
+                        "status": "Aberto",
+                    }
+                )
+                st.success(f"Pedido criado. Código {cod}")
+                st.session_state.pedido_id = pid
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Excluir pedido
+        st.markdown('<div class="cardx" style="margin-top:12px;">', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">🗑️ Excluir pedido</div>', unsafe_allow_html=True)
+        pid_del = st.number_input("ID do pedido para excluir", min_value=1, step=1, value=1, key="ped_del_id")
+        confirm = st.checkbox("Confirmo que quero excluir este pedido", key="ped_del_confirm")
+        if st.button("Excluir pedido", use_container_width=True, disabled=not confirm):
+            excluir_pedido_db(int(pid_del))
+            st.success("Pedido excluído.")
+            if st.session_state.get("pedido_id") == int(pid_del):
+                st.session_state.pedido_id = None
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Gerar pedido a partir de orçamento aprovado
+        st.markdown('<div class="cardx" style="margin-top:12px;">', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">✅ Aprovar orçamento e gerar pedido</div>', unsafe_allow_html=True)
+        st.caption("Aqui sim gera pedido. A página Orçamento não gera automaticamente.")
+        orcs = da.listar_orcamentos() or []
+        aprovados = [o for o in orcs if str(o.get("status", "")).lower() == "aprovado"]
+        if not aprovados:
+            st.info("Sem orçamentos aprovados no momento.")
+        else:
+            o_map = {f"{o.get('codigo')} • {o.get('cliente_nome')} (ID {o.get('id')})": o.get("id") for o in aprovados}
+            pick_orc = st.selectbox("Orçamento aprovado", list(o_map.keys()))
+            resp2 = st.selectbox("Responsável do pedido", list(f_map.keys()), key="resp_orc")
+            entrega2 = st.date_input("Entrega prevista do pedido", value=None, key="entrega_orc")
+            obs2 = st.text_area("Observações do pedido", placeholder="Ex: gerado do orçamento X", key="obs_orc", height=70)
+
+            if st.button("Gerar pedido deste orçamento", use_container_width=True):
+                ok, msg, pedido_id, pedido_codigo = da.gerar_pedido_a_partir_orcamento(
+                    int(o_map[pick_orc]),
+                    responsavel_id=f_map[resp2],
+                    data_entrega_prevista=entrega2,
+                    observacoes=(obs2 or "").strip(),
+                )
+                if ok:
+                    st.success(msg)
+                    st.session_state.pedido_id = pedido_id
+                    st.session_state.page = "Produção" if can(["producao", "admin"]) else "Pedido"
+                    st.rerun()
+                else:
+                    st.error(msg)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Itens do pedido
+    with colB:
+        st.markdown('<div class="cardx">', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">🧩 Itens do pedido</div>', unsafe_allow_html=True)
+
+        pid = st.session_state.get("pedido_id")
+        if not pid:
+            st.info("Crie ou selecione um pedido abaixo.")
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            itens = da.listar_pedido_itens(pid) or []
+            df_it = pd.DataFrame(itens) if itens else pd.DataFrame(columns=["descricao", "qtd", "unidade", "valor_unit"])
+            df_it = df_it[[c for c in ["descricao", "qtd", "unidade", "valor_unit"] if c in df_it.columns]]
+
+            edited = st.data_editor(df_it, num_rows="dynamic", use_container_width=True, key="ped_itens")
+            if st.button("💾 Salvar itens do pedido", use_container_width=True):
+                total = da.salvar_pedido_itens(pid, edited.to_dict("records"))
+                st.success(f"Itens salvos. Total {brl(total)}")
+                st.rerun()
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Lista de pedidos + timeline
+    st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
+    st.subheader("📚 Lista de pedidos (filtrados)")
+    q = st.text_input("Buscar pedido", placeholder="código ou observação", key="q_ped")
+    rows = da.listar_pedidos(q=q.strip() if q else None) or []
+    rows = filter_by_month(rows, date_col="created_at")
+
+    if rows:
+        df = pd.DataFrame(rows)
+        if "data_entrega_prevista" in df.columns:
+            df["data_entrega_prevista"] = df["data_entrega_prevista"].apply(fmt_date_br)
+        if "created_at" in df.columns:
+            df["created_at"] = df["created_at"].apply(fmt_date_br)
+        if "total" in df.columns:
+            df["total"] = df["total"].apply(brl)
+
+        cols = [c for c in ["id", "codigo", "cliente_nome", "status", "etapa_atual", "status_etapa", "responsavel_nome", "data_entrega_prevista", "total", "created_at"] if c in df.columns]
+        st.dataframe(df[cols], use_container_width=True, hide_index=True)
+
+        pick = st.selectbox("Selecionar pedido (ID)", df["id"].tolist())
+        if st.button("Abrir pedido", use_container_width=True):
+            st.session_state.pedido_id = int(pick)
+            st.rerun()
+    else:
+        st.info("Sem pedidos no filtro selecionado.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Timeline abaixo da lista
+    etapa_stats, pedido_current = compute_etapa_stats(rows)
+    render_timeline_pedidos(rows, etapa_stats, pedido_current)
+
+
+def page_producao():
+    render_topbar("🏭 Produção", "Kanban com cards. Sem Expedição e Transporte.")
+
+    if not can(["producao", "admin", "comercial", "leitura"]):
+        st.warning("Acesso restrito.")
+        return
+
+    funcionarios = da.listar_funcionarios(ativo_only=True) or []
+    f_map = {"Sem responsável": None}
+    for f in funcionarios:
+        f_map[f"{f['nome']} (ID {f['id']})"] = f["id"]
+
+    grupos = da.listar_pedidos_por_etapa() or {}
+    peds_all = da.listar_pedidos() or []
+    peds_all = filter_by_month(peds_all, date_col="created_at")
+
+    # KPIs produção
+    total = len(peds_all)
+    em_producao = sum(1 for p in peds_all if (p.get("etapa_atual") == "Produção"))
+    atrasados = 0
+    hoje = date.today()
+    for p in peds_all:
+        entrega = pd.to_datetime(p.get("data_entrega_prevista"), errors="coerce")
+        if not pd.isna(entrega) and entrega.date() < hoje:
+            atrasados += 1
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("📦 Pedidos no filtro", total)
+    c2.metric("🪚 Na etapa Produção", em_producao)
+    c3.metric("⏰ Atrasados", atrasados)
+
+    # Kanban moderno
+    st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
+    st.subheader("🧱 Kanban")
+
+    if not ETAPAS_PRODUCAO_UI:
+        st.warning("Configuração inválida: não sobrou nenhuma etapa para o Kanban.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    cols = st.columns(len(ETAPAS_PRODUCAO_UI))
+
+    for i, etapa in enumerate(ETAPAS_PRODUCAO_UI):
+        with cols[i]:
+            st.markdown(f'<div class="section-title">{etapa}</div>', unsafe_allow_html=True)
+
+            # Se etapa não existe no dict, segura
+            lista = grupos.get(etapa, []) or []
+            # aplica filtro por mês/ano nos cards, usando created_at do pedido
+            if st.session_state.get("flt_month") != "Todos":
+                base_ids = set(int(x.get("id")) for x in peds_all if x.get("id") is not None)
+                lista = [p for p in lista if int(p.get("id")) in base_ids]
+
+            if not lista:
+                st.caption("Sem pedidos aqui.")
+                continue
+
+            for p in lista:
+                pid = int(p.get("id"))
+                cod = p.get("codigo", "")
+                cliente = p.get("cliente_nome", "")
+                resp_nome = p.get("responsavel_nome") or "Não definido"
+                status_et = p.get("status_etapa") or "A fazer"
+                entrega = fmt_date_br(p.get("data_entrega_prevista"))
+                totalv = brl(p.get("total") or 0)
+
+                st.markdown(
+                    f"""
+                    <div class="cardx" style="padding:14px; margin-bottom:10px;">
+                      <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+                        <div style="font-weight:1000;">📦 {cod}</div>
+                        <span class="kbadge">{status_et}</span>
+                      </div>
+                      <div class="muted" style="margin-top:4px;">{cliente}</div>
+                      <div class="muted">👤 {resp_nome}</div>
+                      <div class="muted">🚚 Entrega {entrega if entrega else "não definida"}</div>
+                      <div class="muted">💰 {totalv}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                with st.expander("⚙️ Mover e atualizar", expanded=False):
+                    # se etapa atual não estiver na lista UI, coloca na primeira
+                    try:
+                        idx = ETAPAS_PRODUCAO_UI.index(etapa)
+                    except ValueError:
+                        idx = 0
+
+                    nova_etapa = st.selectbox(
+                        "Etapa",
+                        ETAPAS_PRODUCAO_UI,
+                        index=idx,
+                        key=f"et_{pid}",
+                    )
+                    # status
+                    cur_status = p.get("status_etapa") or STATUS_ETAPA[0]
+                    st_idx = STATUS_ETAPA.index(cur_status) if cur_status in STATUS_ETAPA else 0
+                    status_etapa = st.selectbox("Status", STATUS_ETAPA, index=st_idx, key=f"st_{pid}")
+
+                    resp = st.selectbox("Responsável", list(f_map.keys()), index=0, key=f"rp_{pid}")
+                    obs = st.text_area("Observação", key=f"ob_{pid}", height=70, placeholder="Ex: iniciando corte / aguardando material")
+
+                    if st.button("Salvar movimentação", key=f"sv_{pid}", use_container_width=True):
+                        ok, msg = da.mover_pedido_etapa(pid, nova_etapa, status_etapa, f_map[resp], obs)
+                        st.success(msg) if ok else st.error(msg)
+                        st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
 
 # =========================
 # SIDEBAR + NAVEGAÇÃO
@@ -1086,7 +1462,7 @@ def sidebar_nav_button(label: str, page_name: str, emoji: str, current: str):
         <div class="{css}">
           <div class="left">
             <div style="font-size:18px;">{emoji}</div>
-            <div style="font-weight:900;">{label}</div>
+            <div style="font-weight:950;">{label}</div>
           </div>
           <div class="tag">{tag}</div>
         </div>
@@ -1104,6 +1480,7 @@ def sidebar():
     st.sidebar.markdown(f"**{u.get('nome','Usuário')}**")
     st.sidebar.caption(f"Perfil: {u.get('perfil','-')}")
 
+    # Navegação acima dos filtros (como você pediu)
     st.sidebar.divider()
     st.sidebar.markdown("### Navegação")
 
@@ -1111,6 +1488,9 @@ def sidebar():
     sidebar_nav_button("Dashboard", "Vendas", "📊", current)
     sidebar_nav_button("Clientes", "Clientes", "🧾", current)
     sidebar_nav_button("Funcionários", "Funcionários", "👷", current)
+    sidebar_nav_button("Orçamentos", "Orçamento", "🧾", current)
+    sidebar_nav_button("Pedidos", "Pedido", "📦", current)
+    sidebar_nav_button("Produção", "Produção", "🏭", current)
 
     st.sidebar.divider()
     st.sidebar.markdown("### Filtro por mês")
@@ -1158,5 +1538,8 @@ else:
         "Vendas": page_vendas,
         "Clientes": page_clientes,
         "Funcionários": page_funcionarios,
+        "Orçamento": page_orcamento,
+        "Pedido": page_pedido,
+        "Produção": page_producao,
     }
     routes.get(page, page_vendas)()
