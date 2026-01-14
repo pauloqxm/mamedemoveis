@@ -193,7 +193,7 @@ label, .stMarkdown, .stCaption, p{
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 0px;
   box-shadow: var(--shadow);
 }
 .muted{ color: var(--muted) !important; font-size: .92rem; }
