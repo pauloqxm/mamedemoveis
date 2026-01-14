@@ -245,6 +245,22 @@ label, .stMarkdown, .stCaption, p{
 .kbadge.warn{ border-color: rgba(234,179,8,.40); background: rgba(234,179,8,.12); }
 .kbadge.bad{ border-color: rgba(239,68,68,.35); background: rgba(239,68,68,.12); }
 
+/* SEMÁFORO */
+.sem-pill{
+  display:inline-flex;
+  align-items:center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  border: 1px solid transparent;
+}
+.sem-green{ background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.35); color: #166534; }
+.sem-yellow{ background: rgba(234,179,8,.12); border-color: rgba(234,179,8,.40); color: #854d0e; }
+.sem-red{ background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.35); color: #991b1b; }
+.sem-gray{ background: rgba(148,163,184,.12); border-color: rgba(148,163,184,.35); color: #334155; }
+
 /* Sidebar dark + filtros com fonte branca */
 [data-testid="stSidebar"]{
   background: linear-gradient(180deg, var(--sidebar-bg1) 0%, var(--sidebar-bg2) 100%) !important;
@@ -332,9 +348,7 @@ button[data-testid="stSidebarCollapseButton"]:hover{
   margin-left: 4px;
   height: 100%;
 }
-.tl-box{
-  flex:1;
-}
+.tl-box{ flex:1; }
 </style>
 """,
         unsafe_allow_html=True,
@@ -342,7 +356,6 @@ button[data-testid="stSidebarCollapseButton"]:hover{
 
 
 inject_css()
-
 
 # =========================
 # INIT DB
@@ -513,40 +526,41 @@ def excluir_orcamento_db(orcamento_id: int):
 
 
 # =========================
-# TIMELINE NÍVEL HARD (por etapa)
+# HISTÓRICO ETAPAS + ANALYTICS (SEMÁFORO / GARGALOS)
 # =========================
-def fetch_history_etapas(pedido_id: int):
+def fetch_hist_for_pedidos(pedido_ids: list[int]):
     """
-    Retorna histórico de etapas do pedido a partir de bd_marcenaria.producao_etapas
+    Busca histórico de etapas para vários pedidos de uma vez.
+    Retorna lista de dicts.
     """
+    if not pedido_ids:
+        return []
+
+    placeholders = ",".join(["%s"] * len(pedido_ids))
+    sql = f"""
+        SELECT
+            e.id,
+            e.pedido_id,
+            e.etapa,
+            e.status,
+            e.responsavel_id,
+            f.nome as responsavel_nome,
+            e.inicio_em,
+            e.fim_em,
+            e.observacoes,
+            e.created_at
+        FROM bd_marcenaria.producao_etapas e
+        LEFT JOIN bd_marcenaria.funcionarios f ON f.id = e.responsavel_id
+        WHERE e.pedido_id IN ({placeholders})
+        ORDER BY e.pedido_id ASC, COALESCE(e.inicio_em, e.created_at) ASC, e.id ASC
+    """
+
     with get_db_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    e.id,
-                    e.pedido_id,
-                    e.etapa,
-                    e.status,
-                    e.responsavel_id,
-                    f.nome as responsavel_nome,
-                    e.inicio_em,
-                    e.fim_em,
-                    e.observacoes,
-                    e.created_at
-                FROM bd_marcenaria.producao_etapas e
-                LEFT JOIN bd_marcenaria.funcionarios f ON f.id = e.responsavel_id
-                WHERE e.pedido_id = %s
-                ORDER BY COALESCE(e.inicio_em, e.created_at) ASC, e.id ASC
-                """,
-                (pedido_id,),
-            )
+            cur.execute(sql, pedido_ids)
             cols = [d[0] for d in cur.description]
             rows = cur.fetchall() or []
-            out = []
-            for r in rows:
-                out.append(dict(zip(cols, r)))
-            return out
+            return [dict(zip(cols, r)) for r in rows]
 
 
 def _duration_days(start, end):
@@ -565,13 +579,132 @@ def _nice_days(d):
     if d is None:
         return "-"
     if d < 1:
-        # menos de 1 dia
         horas = int(round(d * 24))
         return f"{max(horas,0)}h"
     return f"{int(round(d))}d"
 
 
-def render_timeline_pedidos_hard(rows):
+def compute_etapa_stats(pedidos_rows: list[dict]):
+    """
+    Calcula:
+      - média de duração por etapa (base: eventos fechados; fallback: todos)
+      - gargalo: soma de dias em aberto por etapa + qtd de pedidos em aberto
+      - tempo atual por pedido na etapa (se houver evento em aberto)
+    Retorna:
+      stats = {etapa: {"avg_closed":..., "avg_all":..., "open_days_sum":..., "open_count":...}}
+      pedido_current = {pedido_id: {"etapa":..., "days_open":...}}
+    """
+    agora = now_dt()
+    ids = [int(p.get("id")) for p in (pedidos_rows or []) if p.get("id") is not None]
+    hist = fetch_hist_for_pedidos(ids)
+
+    if not hist:
+        return {}, {}
+
+    df = pd.DataFrame(hist)
+    for c in ["inicio_em", "fim_em", "created_at"]:
+        if c in df.columns:
+            df[c] = pd.to_datetime(df[c], errors="coerce")
+
+    # início/fim efetivos
+    df["ini_eff"] = df["inicio_em"].fillna(df["created_at"])
+    df["fim_eff"] = df["fim_em"].fillna(pd.Timestamp(agora))
+    df["dur_days"] = (df["fim_eff"] - df["ini_eff"]).dt.total_seconds() / 86400.0
+    df["dur_days"] = df["dur_days"].clip(lower=0)
+
+    df["is_open"] = df["fim_em"].isna()
+
+    stats = {}
+    for etapa, g in df.groupby("etapa"):
+        g_closed = g[~g["is_open"]]
+        avg_closed = float(g_closed["dur_days"].mean()) if len(g_closed) else None
+        avg_all = float(g["dur_days"].mean()) if len(g) else None
+        open_days_sum = float(g[g["is_open"]]["dur_days"].sum()) if len(g[g["is_open"]]) else 0.0
+        open_count = int(g["is_open"].sum())
+
+        stats[etapa] = {
+            "avg_closed": avg_closed,
+            "avg_all": avg_all,
+            "open_days_sum": open_days_sum,
+            "open_count": open_count,
+        }
+
+    # pega "evento aberto mais recente" por pedido (etapa atual real)
+    pedido_current = {}
+    df_open = df[df["is_open"]].copy()
+    if len(df_open):
+        df_open.sort_values(["pedido_id", "ini_eff"], inplace=True)
+        last_open = df_open.groupby("pedido_id").tail(1)
+        for _, r in last_open.iterrows():
+            pid = int(r["pedido_id"])
+            pedido_current[pid] = {"etapa": r.get("etapa"), "days_open": float(r.get("dur_days") or 0.0)}
+
+    return stats, pedido_current
+
+
+def semaforo_class(days_open: float | None, avg_days: float | None):
+    """
+    Regras:
+      - sem dados -> cinza
+      - <= avg -> verde
+      - <= 1.5*avg -> amarelo
+      - > 1.5*avg -> vermelho
+    """
+    if days_open is None or avg_days is None or avg_days <= 0:
+        return "sem-gray", "⚪ Sem base"
+    if days_open <= avg_days:
+        return "sem-green", "🟢 No ritmo"
+    if days_open <= avg_days * 1.5:
+        return "sem-yellow", "🟡 Atenção"
+    return "sem-red", "🔴 Gargalo"
+
+
+def render_gargalos_panel(stats: dict):
+    """
+    Painel ranking gargalos + médias por etapa.
+    """
+    st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
+    st.subheader("🚦 Gargalos e tempo médio por etapa")
+
+    if not stats:
+        st.info("Sem histórico suficiente para calcular gargalos. Quando começar a mover no Kanban, isso vira ouro.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    rows = []
+    for etapa, s in stats.items():
+        rows.append(
+            {
+                "Etapa": etapa,
+                "Pedidos em andamento": s["open_count"],
+                "Dias acumulados em andamento": round(s["open_days_sum"], 2),
+                "Média fechados (dias)": None if s["avg_closed"] is None else round(s["avg_closed"], 2),
+                "Média geral (dias)": None if s["avg_all"] is None else round(s["avg_all"], 2),
+            }
+        )
+
+    df = pd.DataFrame(rows)
+    df_rank = df.sort_values(["Dias acumulados em andamento", "Pedidos em andamento"], ascending=False)
+
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        st.markdown("**🏆 Ranking de gargalos (top)**")
+        show = df_rank[["Etapa", "Pedidos em andamento", "Dias acumulados em andamento"]].head(10)
+        st.dataframe(show, use_container_width=True, hide_index=True)
+
+    with c2:
+        st.markdown("**📌 Médias por etapa**")
+        show2 = df.sort_values("Etapa")[["Etapa", "Média fechados (dias)", "Média geral (dias)"]]
+        st.dataframe(show2, use_container_width=True, hide_index=True)
+
+    st.caption("O semáforo usa a média dos eventos fechados. Se não tiver fechados, cai pra média geral.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# =========================
+# TIMELINE NÍVEL HARD (por etapa)
+# =========================
+def render_timeline_pedidos_hard(rows, etapa_stats: dict, pedido_current: dict):
     st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
     st.subheader("⏳ Linha do tempo por etapas (tempo real)")
 
@@ -583,12 +716,12 @@ def render_timeline_pedidos_hard(rows):
     hoje = date.today()
     agora = now_dt()
 
-    # Busca
     q = st.text_input(
         "Filtrar na linha do tempo",
         placeholder="código, cliente, etapa, responsável",
         key="tl_q_hard",
     )
+
     base_rows = rows
     if q:
         ql = q.strip().lower()
@@ -612,11 +745,15 @@ def render_timeline_pedidos_hard(rows):
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # Ordena por updated desc
     def _sort_key(r):
         return pd.to_datetime(r.get("updated_at") or r.get("created_at"), errors="coerce")
 
     base_rows = sorted(base_rows, key=_sort_key, reverse=True)[:60]
+
+    # Prefetch histórico desses pedidos pra detalhamento
+    ids = [int(p.get("id")) for p in base_rows if p.get("id") is not None]
+    hist_all = fetch_hist_for_pedidos(ids)
+    dfh = pd.DataFrame(hist_all) if hist_all else pd.DataFrame()
 
     for p in base_rows:
         pid = int(p.get("id"))
@@ -638,7 +775,6 @@ def render_timeline_pedidos_hard(rows):
         if not pd.isna(entrega):
             dias_faltam = (entrega.date() - hoje).days
 
-        # Badges prazo
         prazo_txt = "Sem entrega definida"
         prazo_badge = "warn"
         if dias_faltam is not None:
@@ -649,12 +785,25 @@ def render_timeline_pedidos_hard(rows):
                 prazo_txt = f"Atrasado {abs(dias_faltam)} dia(s)"
                 prazo_badge = "bad"
 
-        # Progresso pelo prazo (created -> entrega)
         progress = None
         if not pd.isna(created) and not pd.isna(entrega):
             total_dias = max((entrega.date() - created.date()).days, 1)
             passado = max((hoje - created.date()).days, 0)
             progress = min(passado / total_dias, 1.0)
+
+        # Semáforo pela etapa real em aberto (se existir)
+        cur_info = pedido_current.get(pid)
+        sem_cls = "sem-gray"
+        sem_txt = "⚪ Sem base"
+        sem_detail = ""
+        if cur_info:
+            etapa_open = cur_info.get("etapa")
+            days_open = cur_info.get("days_open", 0.0)
+            avg = None
+            if etapa_open in etapa_stats:
+                avg = etapa_stats[etapa_open].get("avg_closed") or etapa_stats[etapa_open].get("avg_all")
+            sem_cls, sem_txt = semaforo_class(days_open, avg)
+            sem_detail = f"{_nice_days(days_open)} na etapa. Média {_nice_days(avg) if avg else '-'}."
 
         st.markdown(
             f"""
@@ -670,8 +819,10 @@ def render_timeline_pedidos_hard(rows):
                   <span class="kbadge">🔄 Atualizado <b>{fmt_date_br(updated) if not pd.isna(updated) else ""}</b></span>
                   <span class="kbadge {prazo_badge}">🚚 {prazo_txt}</span>
                   <span class="kbadge">⏱️ Andamento <b>{dias_andamento if dias_andamento is not None else "-"} dia(s)</b></span>
+                  <span class="sem-pill {sem_cls}">🚦 {sem_txt}</span>
                 </div>
               </div>
+              <div class="muted" style="margin-top:8px;">{sem_detail}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -683,85 +834,83 @@ def render_timeline_pedidos_hard(rows):
         else:
             st.caption("Defina a entrega prevista para calcular progresso do prazo.")
 
-        # HISTÓRICO DE ETAPAS (HARD)
-        hist = fetch_history_etapas(pid)
-
-        if not hist:
+        # HISTÓRICO DETALHADO
+        if dfh.empty:
             st.info("Sem histórico de etapas registrado ainda. Quando mover no Kanban, ele começa a ficar rico aqui.")
-        else:
-            # calcula duração por evento
-            # se fim_em vazio, usa agora; se inicio_em vazio, usa created_at
-            total_dias_hist = 0.0
-            etapas_sum = {}
+            st.divider()
+            continue
 
-            for e in hist:
-                ini = e.get("inicio_em") or e.get("created_at") or created
-                fim = e.get("fim_em") or agora
-                d = _duration_days(ini, fim)
-                if d is None:
-                    continue
-                total_dias_hist += d
-                etapa_name = e.get("etapa") or "Etapa"
-                etapas_sum[etapa_name] = etapas_sum.get(etapa_name, 0.0) + d
+        dfp = dfh[dfh["pedido_id"] == pid].copy()
+        if dfp.empty:
+            st.info("Sem histórico de etapas registrado ainda.")
+            st.divider()
+            continue
 
-            c1, c2, c3 = st.columns([1, 1, 1])
-            with c1:
-                st.metric("🧠 Tempo total por histórico", _nice_days(total_dias_hist))
-            with c2:
-                st.metric("🧱 Etapa atual", etapa_atual)
-            with c3:
-                st.metric("📌 Status etapa", status_et)
+        for c in ["inicio_em", "fim_em", "created_at"]:
+            if c in dfp.columns:
+                dfp[c] = pd.to_datetime(dfp[c], errors="coerce")
 
-            # Lista por etapa (agregado)
-            df_sum = pd.DataFrame(
-                [{"Etapa": k, "Tempo": v} for k, v in etapas_sum.items()]
-            ).sort_values("Tempo", ascending=False)
+        dfp["ini_eff"] = dfp["inicio_em"].fillna(dfp["created_at"]).fillna(created)
+        dfp["fim_eff"] = dfp["fim_em"].fillna(pd.Timestamp(agora))
+        dfp["dur_days"] = (dfp["fim_eff"] - dfp["ini_eff"]).dt.total_seconds() / 86400.0
+        dfp["dur_days"] = dfp["dur_days"].clip(lower=0)
+        dfp["is_open"] = dfp["fim_em"].isna()
 
-            st.markdown('<div class="cardx" style="margin-top:10px;">', unsafe_allow_html=True)
-            st.markdown("**📊 Tempo acumulado por etapa**")
-            for _, r in df_sum.iterrows():
-                st.markdown(f"- **{r['Etapa']}**: {_nice_days(r['Tempo'])}")
-            st.markdown("</div>", unsafe_allow_html=True)
+        # KPIs do histórico
+        total_hist = float(dfp["dur_days"].sum()) if len(dfp) else 0.0
+        etapas_sum = dfp.groupby("etapa")["dur_days"].sum().sort_values(ascending=False).reset_index()
 
-            # Linha do tempo detalhada (evento a evento)
-            with st.expander("🧾 Ver linha do tempo detalhada", expanded=False):
-                for idx, e in enumerate(hist):
-                    etapa = e.get("etapa") or "-"
-                    status = e.get("status") or "-"
-                    resp = e.get("responsavel_nome") or "Não definido"
-                    ini = e.get("inicio_em") or e.get("created_at") or created
-                    fim = e.get("fim_em")
-                    fim_show = fim if fim else agora
-                    dur = _duration_days(ini, fim_show)
-                    dur_txt = _nice_days(dur)
+        c1, c2, c3 = st.columns([1, 1, 1])
+        with c1:
+            st.metric("🧠 Tempo total no histórico", _nice_days(total_hist))
+        with c2:
+            st.metric("🧱 Etapa atual", etapa_atual)
+        with c3:
+            st.metric("📌 Status etapa", status_et)
 
-                    obs = (e.get("observacoes") or "").strip()
-                    obs_txt = obs if obs else "Sem observações."
+        st.markdown('<div class="cardx" style="margin-top:10px;">', unsafe_allow_html=True)
+        st.markdown("**📊 Tempo acumulado por etapa**")
+        for _, r in etapas_sum.iterrows():
+            st.markdown(f"- **{r['etapa']}**: {_nice_days(float(r['dur_days']))}")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-                    st.markdown(
-                        f"""
-                        <div class="tl-row">
-                          <div>
-                            <div class="tl-dot"></div>
-                            {"<div class='tl-line' style='height:34px;'></div>" if idx < len(hist)-1 else ""}
-                          </div>
-                          <div class="tl-box">
-                            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                              <span class="kbadge">🧱 <b>{etapa}</b></span>
-                              <span class="kbadge">📌 <b>{status}</b></span>
-                              <span class="kbadge">👤 <b>{resp}</b></span>
-                              <span class="kbadge">⏱️ <b>{dur_txt}</b></span>
-                            </div>
-                            <div class="muted" style="margin-top:6px;">
-                              Início <b>{fmt_dt_br(ini)}</b>
-                              {" • Fim <b>" + fmt_dt_br(fim) + "</b>" if fim else " • <b>Em andamento</b>"}
-                            </div>
-                            <div class="muted" style="margin-top:4px;">📝 {obs_txt}</div>
-                          </div>
+        with st.expander("🧾 Ver linha do tempo detalhada", expanded=False):
+            dfp = dfp.sort_values(["ini_eff", "id"])
+            for idx, r in dfp.iterrows():
+                etapa = r.get("etapa") or "-"
+                status = r.get("status") or "-"
+                resp = r.get("responsavel_nome") or "Não definido"
+                ini = r.get("ini_eff")
+                fim = r.get("fim_em")
+                dur = float(r.get("dur_days") or 0.0)
+                dur_txt = _nice_days(dur)
+                obs = (r.get("observacoes") or "").strip()
+                obs_txt = obs if obs else "Sem observações."
+
+                st.markdown(
+                    f"""
+                    <div class="tl-row">
+                      <div>
+                        <div class="tl-dot"></div>
+                      </div>
+                      <div class="tl-box">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                          <span class="kbadge">🧱 <b>{etapa}</b></span>
+                          <span class="kbadge">📌 <b>{status}</b></span>
+                          <span class="kbadge">👤 <b>{resp}</b></span>
+                          <span class="kbadge">⏱️ <b>{dur_txt}</b></span>
+                          <span class="kbadge">{'🟣 Em andamento' if pd.isna(fim) else '✅ Finalizado'}</span>
                         </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                        <div class="muted" style="margin-top:6px;">
+                          Início <b>{fmt_dt_br(ini)}</b>
+                          {" • Fim <b>" + fmt_dt_br(fim) + "</b>" if not pd.isna(fim) else " • <b>Em andamento</b>"}
+                        </div>
+                        <div class="muted" style="margin-top:4px;">📝 {obs_txt}</div>
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
         st.divider()
 
@@ -940,7 +1089,7 @@ def page_funcionarios():
 
 
 def page_vendas():
-    render_topbar("Dashboard", "Visão rápida do sistema com filtro de mês")
+    render_topbar("Dashboard", "Semáforo por etapa e ranking de gargalos")
 
     orcs_all = da.listar_orcamentos() or []
     peds_all = da.listar_pedidos() or []
@@ -953,11 +1102,17 @@ def page_vendas():
     total_ped_valor = sum(safe_float(p.get("total"), 0) for p in peds)
     total_orc_valor = sum(safe_float(o.get("total_estimado"), 0) for o in orcs)
 
+    # Stats etapa/gargalos pelo conjunto filtrado de pedidos
+    etapa_stats, pedido_current = compute_etapa_stats(peds)
+
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("🧾 Orçamentos", total_orc)
     c2.metric("📦 Pedidos", total_ped)
     c3.metric("💰 Total em pedidos", brl(total_ped_valor))
     c4.metric("📊 Total em orçamentos", brl(total_orc_valor))
+
+    # Gargalos + médias
+    render_gargalos_panel(etapa_stats)
 
     st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
     st.subheader("📌 Últimos pedidos")
@@ -1128,10 +1283,12 @@ def page_orcamento():
 
 
 def page_pedido():
-    render_topbar("Pedido", "KPIs em Real + histórico por etapas")
+    render_topbar("Pedido", "Semáforo por etapa + gargalos + timeline real")
 
     peds_all = da.listar_pedidos() or []
     peds = filter_by_month(peds_all, date_col="created_at")
+
+    etapa_stats, pedido_current = compute_etapa_stats(peds)
 
     total_peds = len(peds)
     total_valor = sum(safe_float(p.get("total"), 0) for p in peds)
@@ -1143,6 +1300,8 @@ def page_pedido():
     k2.metric("💰 Total em pedidos", brl(total_valor))
     k3.metric("🟡 Pedidos abertos", abertos)
     k4.metric("✅ Etapas concluídas", concluidos)
+
+    render_gargalos_panel(etapa_stats)
 
     st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
     st.subheader("🧾 Gerar pedido a partir de orçamento aprovado")
@@ -1190,7 +1349,6 @@ def page_pedido():
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Lista de pedidos
     st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
     st.subheader("📋 Lista de pedidos (filtrados)")
     q = st.text_input("Buscar pedido", placeholder="código ou observação", key="q_ped")
@@ -1243,15 +1401,20 @@ def page_pedido():
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Timeline HARD logo abaixo
-    render_timeline_pedidos_hard(rows_q)
+    render_timeline_pedidos_hard(rows_q, etapa_stats, pedido_current)
 
 
 def page_producao():
-    render_topbar("Produção", "Kanban com etapas essenciais")
+    render_topbar("Produção", "Kanban com semáforo por tempo na etapa")
 
     etapas = [e for e in ETAPAS_PRODUCAO if str(e).strip().lower() not in ["expedição", "expedicao", "transporte"]]
     if not etapas:
         etapas = ETAPAS_PRODUCAO
+
+    # dados base
+    peds_all = da.listar_pedidos() or []
+    peds_filtered = filter_by_month(peds_all, date_col="created_at")
+    etapa_stats, pedido_current = compute_etapa_stats(peds_filtered)
 
     funcionarios = da.listar_funcionarios(ativo_only=True) or []
     f_map = {"Sem responsável": None}
@@ -1261,7 +1424,6 @@ def page_producao():
     grupos = da.listar_pedidos_por_etapa() or {}
     cols = st.columns(len(etapas))
 
-    # Filtro por mês para a produção usar updated_at
     for i, etapa in enumerate(etapas):
         with cols[i]:
             st.markdown('<div class="cardx">', unsafe_allow_html=True)
@@ -1276,18 +1438,37 @@ def page_producao():
                 continue
 
             for p in pedidos:
+                pid = int(p.get("id"))
                 status_et = p.get("status_etapa") or "A fazer"
                 cls = "ok" if str(status_et).lower().startswith("concl") else "warn"
+
+                # semáforo pela etapa real em aberto
+                cur_info = pedido_current.get(pid)
+                sem_cls = "sem-gray"
+                sem_txt = "⚪ Sem base"
+                sem_detail = ""
+                if cur_info:
+                    etapa_open = cur_info.get("etapa")
+                    days_open = cur_info.get("days_open", 0.0)
+                    avg = None
+                    if etapa_open in etapa_stats:
+                        avg = etapa_stats[etapa_open].get("avg_closed") or etapa_stats[etapa_open].get("avg_all")
+                    sem_cls, sem_txt = semaforo_class(days_open, avg)
+                    sem_detail = f"{_nice_days(days_open)} (média {_nice_days(avg) if avg else '-'})"
 
                 st.markdown(
                     f"""
                     <div class="cardx" style="margin:10px 0;">
-                      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;">
+                      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
                         <div style="font-weight:1000;">📦 {p.get('codigo')}</div>
                         <span class="kbadge {cls}">{status_et}</span>
                       </div>
                       <div class="muted" style="margin-top:4px;">{p.get('cliente_nome','')}</div>
-                      <div class="muted">Resp. <b>{p.get('responsavel_nome') or 'Não definido'}</b></div>
+                      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;">
+                        <span class="sem-pill {sem_cls}">🚦 {sem_txt}</span>
+                        <span class="kbadge">{sem_detail}</span>
+                      </div>
+                      <div class="muted" style="margin-top:4px;">Resp. <b>{p.get('responsavel_nome') or 'Não definido'}</b></div>
                       <div class="muted">Total <b>{brl(p.get('total') or 0)}</b></div>
                     </div>
                     """,
@@ -1342,7 +1523,6 @@ def sidebar():
     st.sidebar.markdown(f"**{u.get('nome','Usuário')}**")
     st.sidebar.caption(f"Perfil: {u.get('perfil','-')}")
 
-    # Navegação em cima dos filtros
     st.sidebar.divider()
     st.sidebar.markdown("### Navegação")
 
@@ -1356,10 +1536,8 @@ def sidebar():
 
     st.sidebar.divider()
 
-    # ===== Filtro Mês/Ano (global) =====
     st.sidebar.markdown("### Filtro por mês")
 
-    # Descobre anos existentes
     peds_all = da.listar_pedidos() or []
     orcs_all = da.listar_orcamentos() or []
     years = set()
