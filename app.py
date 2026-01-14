@@ -1372,7 +1372,7 @@ def page_producao():
 
     # Kanban moderno
     st.markdown('<div class="cardx" style="margin-top:14px;">', unsafe_allow_html=True)
-    st.subheader("🧱 Kanban")
+    st.subheader("🪚 Painel de etapas")
 
     if not ETAPAS_PRODUCAO_UI:
         st.warning("Configuração inválida: não sobrou nenhuma etapa para o Kanban.")
